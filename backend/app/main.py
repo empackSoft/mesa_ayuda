@@ -3,8 +3,7 @@ from sqlalchemy import text
 from database import engine
 
 app = FastAPI(
-    title="Mesa Ayuda API",
-    # root_path="/mesa_ayuda"
+    title="Mesa Ayuda API"
 )
 
 @app.get("/")

@@ -4,7 +4,7 @@ from database import engine
 
 app = FastAPI(
     title="Mesa Ayuda API",
-    root_path="/mesa_ayuda"
+    # root_path="/mesa_ayuda"
 )
 
 @app.get("/")

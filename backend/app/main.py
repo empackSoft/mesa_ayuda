@@ -1,18 +1,25 @@
 from fastapi import FastAPI
+from sqlalchemy import text
+from database import engine
 
-app = FastAPI(title="Ticket System API")
-
-@app.get("/health")
-def health():
-    return {"status": "ok"}
+app = FastAPI(
+    title="Mesa Ayuda API",
+    root_path="/mesa_ayuda"
+)
 
 @app.get("/")
 def root():
     return {"message": "Sistema activo"}
 
+@app.get("/health")
+def health():
+    return {"status": "ok"}
 
-
-
-
-
-
+@app.get("/db-check")
+def db_check():
+    try:
+        with engine.connect() as connection:
+            connection.execute(text("SELECT 1"))
+        return {"database": "connected"}
+    except Exception as e:
+        return {"error": str(e)}

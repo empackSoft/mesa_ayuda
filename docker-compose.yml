@@ -1,7 +1,6 @@
 version: "3.9"
 
 services:
-
   nginx:
     image: nginx:stable-alpine
     container_name: nginx
@@ -31,10 +30,14 @@ services:
     image: postgres:15-alpine
     container_name: postgres
     restart: always
-    env_file:
-      - .env
+    environment:
+      - POSTGRES_USER=admin_mesa
+      - POSTGRES_PASSWORD=3MtmNv43A3
+      - POSTGRES_DB=mesa_db
+    ports:
+      - "5432:5432"
     volumes:
-      - ./postgres:/var/lib/postgresql/data
+      - vol_mesa_final:/var/lib/postgresql/data
     networks:
       - internal
 
@@ -48,3 +51,6 @@ services:
 
 networks:
   internal:
+
+volumes:
+  vol_mesa_final:

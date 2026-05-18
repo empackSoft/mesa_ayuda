@@ -22,3 +22,10 @@ def db_check():
         return {"database": "connected"}
     except Exception as e:
         return {"error": str(e)}
+
+
+@app.get("/create-test")
+def create_test():
+    from models.base import Base
+    Base.metadata.create_all(bind=engine)
+    return {"tables": "created"}

@@ -23,7 +23,6 @@ def create(ticket: TicketCreate):
     finally:
         db.close()
 
-
 # RUTA PRINCIPAL PARA VISITAR EL SITIO PARA LA MESA DE AYUDA
 @router.get("/", response_model=List[TicketResponse])
 def list_all():

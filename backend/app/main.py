@@ -10,15 +10,15 @@ app = FastAPI(
 
 API_PREFIX = "/mesa_ayuda/api"
 
+
+@app.get(API_PREFIX)
+def root():
+    return {"message": "Sistema activo"}
+
 app.include_router(
     ticket_router,
     prefix=API_PREFIX
 )
-
-
-@app.get("/")
-def root():
-    return {"message": "Sistema activo"}
 
 
 @app.get("/health")

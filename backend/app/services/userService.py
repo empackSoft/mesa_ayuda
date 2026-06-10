@@ -1,32 +1,14 @@
+from schemas.user import UserCreate, UserUpdate
+from security.password import hash_password
 from sqlalchemy.orm import Session
 from fastapi import HTTPException
-from passlib.context import CryptContext
-
 from models.user import User
-from schemas.user import UserCreate, UserUpdate
-
-
-pwd_context = CryptContext(
-    schemes=["bcrypt"],
-    deprecated="auto"
-)
-
 
 VALID_ROLES = [
     "user",
     "support",
     "admin"
 ]
-
-
-def hash_password(password: str):
-    if len(password.encode("utf-8")) > 72:
-        raise HTTPException(
-            status_code=400,
-            detail="La contraseña no puede superar 72 bytes"
-        )
-
-    return pwd_context.hash(password.encode("utf-8")[:72].decode("utf-8", errors="ignore"))
 
 
 def get_users(db: Session):

@@ -8,6 +8,7 @@ from routers.ticketRouter import router as ticket_router
 from routers.incidenciaRouter import router as incidencia_router
 from models.user import User
 from routers.userRouter import router as user_router
+from routers.authRouter import router as auth_router
 
 
 Base.metadata.create_all(bind=engine)
@@ -29,20 +30,10 @@ def root():
     }
 
 
-app.include_router(
-    ticket_router,
-    prefix=API_PREFIX
-)
-
-app.include_router(
-    incidencia_router,
-    prefix=API_PREFIX
-)
-
-app.include_router(
-    user_router,
-    prefix=API_PREFIX
-)
+app.include_router(ticket_router,prefix=API_PREFIX)
+app.include_router(incidencia_router,prefix=API_PREFIX)
+app.include_router(user_router,prefix=API_PREFIX)
+app.include_router(auth_router,prefix=API_PREFIX)
 
 @app.get("/health")
 def health():

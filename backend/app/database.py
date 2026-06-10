@@ -1,18 +1,12 @@
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker, declarative_base
 import os
 
-from dotenv import load_dotenv
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
 
-from models.user import User
-from models.branch import Branch
-from models.ticket import Ticket
-from models.audit_log import AuditLog
-from models.base import Base
-
-load_dotenv()
-
-DATABASE_URL = os.getenv("DATABASE_URL")
+DATABASE_URL = os.getenv(
+    "DATABASE_URL",
+    "postgresql://admin_mesa:admin_mesa@postgres:5432/mesa_db"
+)
 
 engine = create_engine(DATABASE_URL)
 
@@ -22,4 +16,4 @@ SessionLocal = sessionmaker(
     bind=engine
 )
 
-Base.metadata.create_all(bind=engine)
+Base = declarative_base()

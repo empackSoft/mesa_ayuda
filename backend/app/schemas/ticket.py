@@ -1,16 +1,34 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+from typing import Optional
+from datetime import datetime
+
 
 class TicketCreate(BaseModel):
-    title: str
-    status: str
-    priority: str
+    incidencia_id: int = Field(..., gt=0)
+    subincidencia_id: int = Field(..., gt=0)
+    description: str = Field(..., min_length=5)
+    attachment_path: Optional[str] = None
+
+
+class TicketUpdate(BaseModel):
+    incidencia_id: Optional[int] = Field(None, gt=0)
+    subincidencia_id: Optional[int] = Field(None, gt=0)
+    description: Optional[str] = Field(None, min_length=5)
+    attachment_path: Optional[str] = None
+    status: Optional[str] = None
+    priority: Optional[str] = None
 
 
 class TicketResponse(BaseModel):
     id: int
-    title: str
+    incidencia_id: int
+    subincidencia_id: int
+    description: str
+    attachment_path: Optional[str]
     status: str
     priority: str
+    created_at: datetime
+    updated_at: Optional[datetime]
 
     class Config:
         from_attributes = True

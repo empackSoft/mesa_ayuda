@@ -24,6 +24,22 @@ VALID_PRIORITY = [
 ]
 
 
+def build_ticket_response(ticket: Ticket):
+    return {
+        "id": ticket.id,
+        "incidencia_id": ticket.incidencia_id,
+        "incidencia": ticket.incidencia.name if ticket.incidencia else None,
+        "subincidencia_id": ticket.subincidencia_id,
+        "subincidencia": ticket.subincidencia.name if ticket.subincidencia else None,
+        "description": ticket.description,
+        "attachment_path": ticket.attachment_path,
+        "status": ticket.status,
+        "priority": ticket.priority,
+        "created_at": ticket.created_at,
+        "updated_at": ticket.updated_at
+    }
+
+
 def validate_catalog_relation(
         db: Session,
         incidencia_id: int,
@@ -72,6 +88,25 @@ def validate_catalog_relation(
         )
 
 
+def find_ticket_by_id(
+        db: Session,
+        ticket_id: int
+):
+    ticket = (
+        db.query(Ticket)
+        .filter(Ticket.id == ticket_id)
+        .first()
+    )
+
+    if ticket is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Ticket no encontrado"
+        )
+
+    return ticket
+
+
 def create_ticket(
         db: Session,
         ticket_data: TicketCreate
@@ -103,34 +138,32 @@ def create_ticket(
             detail="No se pudo crear el ticket por una relación inválida"
         )
 
-    return new_ticket
+    return build_ticket_response(new_ticket)
 
 
 def get_tickets(db: Session):
-    return (
+    tickets = (
         db.query(Ticket)
         .order_by(Ticket.id.desc())
         .all()
     )
+
+    return [
+        build_ticket_response(ticket)
+        for ticket in tickets
+    ]
 
 
 def get_ticket_by_id(
         db: Session,
         ticket_id: int
 ):
-    ticket = (
-        db.query(Ticket)
-        .filter(Ticket.id == ticket_id)
-        .first()
+    ticket = find_ticket_by_id(
+        db,
+        ticket_id
     )
 
-    if ticket is None:
-        raise HTTPException(
-            status_code=404,
-            detail="Ticket no encontrado"
-        )
-
-    return ticket
+    return build_ticket_response(ticket)
 
 
 def update_ticket(
@@ -138,7 +171,10 @@ def update_ticket(
         ticket_id: int,
         ticket_data: TicketUpdate
 ):
-    ticket = get_ticket_by_id(db, ticket_id)
+    ticket = find_ticket_by_id(
+        db,
+        ticket_id
+    )
 
     data = ticket_data.model_dump(exclude_unset=True)
 
@@ -185,14 +221,17 @@ def update_ticket(
             detail="No se pudo actualizar el ticket por una relación inválida"
         )
 
-    return ticket
+    return build_ticket_response(ticket)
 
 
 def close_ticket(
         db: Session,
         ticket_id: int
 ):
-    ticket = get_ticket_by_id(db, ticket_id)
+    ticket = find_ticket_by_id(
+        db,
+        ticket_id
+    )
 
     if ticket.status == "closed":
         raise HTTPException(
@@ -205,14 +244,17 @@ def close_ticket(
     db.commit()
     db.refresh(ticket)
 
-    return ticket
+    return build_ticket_response(ticket)
 
 
 def delete_ticket(
         db: Session,
         ticket_id: int
 ):
-    ticket = get_ticket_by_id(db, ticket_id)
+    ticket = find_ticket_by_id(
+        db,
+        ticket_id
+    )
 
     db.delete(ticket)
     db.commit()

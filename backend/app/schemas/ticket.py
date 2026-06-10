@@ -21,14 +21,18 @@ class TicketUpdate(BaseModel):
 
 class TicketResponse(BaseModel):
     id: int
+
     incidencia_id: int
+    incidencia: str
+
     subincidencia_id: int
+    subincidencia: str
+
     description: str
     attachment_path: Optional[str]
+
     status: str
     priority: str
+
     created_at: datetime
     updated_at: Optional[datetime]
-
-    class Config:
-        from_attributes = True

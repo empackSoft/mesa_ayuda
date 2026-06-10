@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
-
+from typing import Optional
+from datetime import datetime
 from dependencies.database import get_db
 
 from schemas.ticket import (
@@ -42,10 +43,23 @@ def create_new_ticket(
     response_model=list[TicketResponse]
 )
 def list_tickets(
+        status: Optional[str] = None,
+        priority: Optional[str] = None,
+        incidencia_id: Optional[int] = None,
+        subincidencia_id: Optional[int] = None,
+        created_from: Optional[datetime] = None,
+        created_to: Optional[datetime] = None,
         db: Session = Depends(get_db)
 ):
-    return get_tickets(db)
-
+    return get_tickets(
+        db=db,
+        status=status,
+        priority=priority,
+        incidencia_id=incidencia_id,
+        subincidencia_id=subincidencia_id,
+        created_from=created_from,
+        created_to=created_to
+    )
 
 @router.get(
     "/{ticket_id}",

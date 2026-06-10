@@ -141,9 +141,49 @@ def create_ticket(
     return build_ticket_response(new_ticket)
 
 
-def get_tickets(db: Session):
+def get_tickets(
+        db: Session,
+        status: str = None,
+        priority: str = None,
+        incidencia_id: int = None,
+        subincidencia_id: int = None,
+        created_from=None,
+        created_to=None
+):
+    query = db.query(Ticket)
+
+    if status:
+        if status not in VALID_STATUS:
+            raise HTTPException(
+                status_code=400,
+                detail="Estado inválido"
+            )
+
+        query = query.filter(Ticket.status == status)
+
+    if priority:
+        if priority not in VALID_PRIORITY:
+            raise HTTPException(
+                status_code=400,
+                detail="Prioridad inválida"
+            )
+
+        query = query.filter(Ticket.priority == priority)
+
+    if incidencia_id:
+        query = query.filter(Ticket.incidencia_id == incidencia_id)
+
+    if subincidencia_id:
+        query = query.filter(Ticket.subincidencia_id == subincidencia_id)
+
+    if created_from:
+        query = query.filter(Ticket.created_at >= created_from)
+
+    if created_to:
+        query = query.filter(Ticket.created_at <= created_to)
+
     tickets = (
-        db.query(Ticket)
+        query
         .order_by(Ticket.id.desc())
         .all()
     )
@@ -152,7 +192,6 @@ def get_tickets(db: Session):
         build_ticket_response(ticket)
         for ticket in tickets
     ]
-
 
 def get_ticket_by_id(
         db: Session,

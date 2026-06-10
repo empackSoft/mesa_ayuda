@@ -1,14 +1,13 @@
 from fastapi import FastAPI
 from sqlalchemy import text
-
 from database import engine, Base
-
 from models.ticket import Ticket
 from models.incidencia import Incidencia
 from models.subincidencia import Subincidencia
-
 from routers.ticketRouter import router as ticket_router
 from routers.incidenciaRouter import router as incidencia_router
+from models.user import User
+from routers.userRouter import router as user_router
 
 
 Base.metadata.create_all(bind=engine)
@@ -37,6 +36,11 @@ app.include_router(
 
 app.include_router(
     incidencia_router,
+    prefix=API_PREFIX
+)
+
+app.include_router(
+    user_router,
     prefix=API_PREFIX
 )
 

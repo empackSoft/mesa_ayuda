@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
 
 from dependencies.database import get_db
+from dependencies.auth import require_admin
 
 from schemas.incidencia import (
     IncidenciaCreate,
@@ -17,6 +18,8 @@ from schemas.subincidencia import (
 
 from services import incidenciaService
 
+from models.user import User
+
 
 router = APIRouter(
     prefix="/incidencias",
@@ -28,7 +31,10 @@ router = APIRouter(
     "/",
     response_model=list[IncidenciaResponse]
 )
-def list_incidencias(db: Session = Depends(get_db)):
+def list_incidencias(
+        db: Session = Depends(get_db),
+        current_user: User = Depends(require_admin)
+):
     return incidenciaService.get_incidencias(db)
 
 
@@ -36,7 +42,10 @@ def list_incidencias(db: Session = Depends(get_db)):
     "/active",
     response_model=list[IncidenciaResponse]
 )
-def list_active_incidencias(db: Session = Depends(get_db)):
+def list_active_incidencias(
+        db: Session = Depends(get_db),
+        current_user: User = Depends(require_admin)
+):
     return incidenciaService.get_active_incidencias(db)
 
 
@@ -46,9 +55,13 @@ def list_active_incidencias(db: Session = Depends(get_db)):
 )
 def get_incidencia(
         incidencia_id: int,
-        db: Session = Depends(get_db)
+        db: Session = Depends(get_db),
+        current_user: User = Depends(require_admin)
 ):
-    return incidenciaService.get_incidencia_by_id(db, incidencia_id)
+    return incidenciaService.get_incidencia_by_id(
+        db,
+        incidencia_id
+    )
 
 
 @router.post(
@@ -58,9 +71,13 @@ def get_incidencia(
 )
 def create_new_incidencia(
         incidencia: IncidenciaCreate,
-        db: Session = Depends(get_db)
+        db: Session = Depends(get_db),
+        current_user: User = Depends(require_admin)
 ):
-    return incidenciaService.create_incidencia(db, incidencia)
+    return incidenciaService.create_incidencia(
+        db,
+        incidencia
+    )
 
 
 @router.put(
@@ -70,7 +87,8 @@ def create_new_incidencia(
 def update_existing_incidencia(
         incidencia_id: int,
         incidencia: IncidenciaUpdate,
-        db: Session = Depends(get_db)
+        db: Session = Depends(get_db),
+        current_user: User = Depends(require_admin)
 ):
     return incidenciaService.update_incidencia(
         db,
@@ -85,7 +103,8 @@ def update_existing_incidencia(
 )
 def list_subincidencias_by_incidencia(
         incidencia_id: int,
-        db: Session = Depends(get_db)
+        db: Session = Depends(get_db),
+        current_user: User = Depends(require_admin)
 ):
     return incidenciaService.get_subincidencias_by_incidencia(
         db,
@@ -97,7 +116,10 @@ def list_subincidencias_by_incidencia(
     "/subincidencias/all",
     response_model=list[SubincidenciaResponse]
 )
-def list_subincidencias(db: Session = Depends(get_db)):
+def list_subincidencias(
+        db: Session = Depends(get_db),
+        current_user: User = Depends(require_admin)
+):
     return incidenciaService.get_subincidencias(db)
 
 
@@ -108,9 +130,13 @@ def list_subincidencias(db: Session = Depends(get_db)):
 )
 def create_new_subincidencia(
         subincidencia: SubincidenciaCreate,
-        db: Session = Depends(get_db)
+        db: Session = Depends(get_db),
+        current_user: User = Depends(require_admin)
 ):
-    return incidenciaService.create_subincidencia(db, subincidencia)
+    return incidenciaService.create_subincidencia(
+        db,
+        subincidencia
+    )
 
 
 @router.put(
@@ -120,7 +146,8 @@ def create_new_subincidencia(
 def update_existing_subincidencia(
         subincidencia_id: int,
         subincidencia: SubincidenciaUpdate,
-        db: Session = Depends(get_db)
+        db: Session = Depends(get_db),
+        current_user: User = Depends(require_admin)
 ):
     return incidenciaService.update_subincidencia(
         db,

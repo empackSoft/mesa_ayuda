@@ -45,3 +45,39 @@ def get_current_user(
         )
 
     return user
+
+
+def require_admin(
+        current_user: User = Depends(get_current_user)
+):
+    if current_user.role != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="No tienes permisos de administrador"
+        )
+
+    return current_user
+
+
+def require_support_or_admin(
+        current_user: User = Depends(get_current_user)
+):
+    if current_user.role not in ["support", "admin"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="No tienes permisos de soporte"
+        )
+
+    return current_user
+
+
+def require_user_or_above(
+        current_user: User = Depends(get_current_user)
+):
+    if current_user.role not in ["user", "support", "admin"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="No tienes permisos"
+        )
+
+    return current_user

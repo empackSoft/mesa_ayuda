@@ -35,10 +35,6 @@ def login(
         db,
         login_data
     )
-
-
-
-
 @router.get("/me")
 def me(
         current_user: User = Depends(get_current_user)

@@ -4,6 +4,12 @@ from typing import Optional
 from datetime import datetime
 from dependencies.database import get_db
 
+from dependencies.auth import (
+    require_admin,
+    require_support_or_admin,
+    require_user_or_above
+)
+
 from schemas.ticket import (
     TicketCreate,
     TicketUpdate,
@@ -19,6 +25,8 @@ from services.ticketService import (
     delete_ticket
 )
 
+from models.user import User
+
 
 router = APIRouter(
     prefix="/tickets",
@@ -33,9 +41,13 @@ router = APIRouter(
 )
 def create_new_ticket(
         ticket: TicketCreate,
-        db: Session = Depends(get_db)
+        db: Session = Depends(get_db),
+        current_user: User = Depends(require_user_or_above)
 ):
-    return create_ticket(db, ticket)
+    return create_ticket(
+        db,
+        ticket
+    )
 
 
 @router.get(
@@ -49,7 +61,8 @@ def list_tickets(
         subincidencia_id: Optional[int] = None,
         created_from: Optional[datetime] = None,
         created_to: Optional[datetime] = None,
-        db: Session = Depends(get_db)
+        db: Session = Depends(get_db),
+        current_user: User = Depends(require_support_or_admin)
 ):
     return get_tickets(
         db=db,
@@ -61,15 +74,20 @@ def list_tickets(
         created_to=created_to
     )
 
+
 @router.get(
     "/{ticket_id}",
     response_model=TicketResponse
 )
 def get_ticket(
         ticket_id: int,
-        db: Session = Depends(get_db)
+        db: Session = Depends(get_db),
+        current_user: User = Depends(require_support_or_admin)
 ):
-    return get_ticket_by_id(db, ticket_id)
+    return get_ticket_by_id(
+        db,
+        ticket_id
+    )
 
 
 @router.put(
@@ -79,9 +97,14 @@ def get_ticket(
 def update_existing_ticket(
         ticket_id: int,
         ticket: TicketUpdate,
-        db: Session = Depends(get_db)
+        db: Session = Depends(get_db),
+        current_user: User = Depends(require_support_or_admin)
 ):
-    return update_ticket(db, ticket_id, ticket)
+    return update_ticket(
+        db,
+        ticket_id,
+        ticket
+    )
 
 
 @router.patch(
@@ -90,14 +113,22 @@ def update_existing_ticket(
 )
 def close_existing_ticket(
         ticket_id: int,
-        db: Session = Depends(get_db)
+        db: Session = Depends(get_db),
+        current_user: User = Depends(require_support_or_admin)
 ):
-    return close_ticket(db, ticket_id)
+    return close_ticket(
+        db,
+        ticket_id
+    )
 
 
 @router.delete("/{ticket_id}")
 def delete_existing_ticket(
         ticket_id: int,
-        db: Session = Depends(get_db)
+        db: Session = Depends(get_db),
+        current_user: User = Depends(require_admin)
 ):
-    return delete_ticket(db, ticket_id)
+    return delete_ticket(
+        db,
+        ticket_id
+    )

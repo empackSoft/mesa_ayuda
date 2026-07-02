@@ -8,7 +8,6 @@ from models.subincidencia import Subincidencia
 
 from schemas.ticket import TicketCreate, TicketUpdate
 
-
 VALID_STATUS = [
     "open",
     "in_progress",
@@ -31,6 +30,8 @@ def build_ticket_response(ticket: Ticket):
         "incidencia": ticket.incidencia.name if ticket.incidencia else None,
         "subincidencia_id": ticket.subincidencia_id,
         "subincidencia": ticket.subincidencia.name if ticket.subincidencia else None,
+        "created_by_user_id": ticket.created_by_user_id,
+        "created_by_user_name": ticket.created_by.name if ticket.created_by else None,
         "description": ticket.description,
         "attachment_path": ticket.attachment_path,
         "status": ticket.status,
@@ -106,10 +107,10 @@ def find_ticket_by_id(
 
     return ticket
 
-
 def create_ticket(
         db: Session,
-        ticket_data: TicketCreate
+        ticket_data: TicketCreate,
+        current_user=None
 ):
     validate_catalog_relation(
         db=db,
@@ -120,6 +121,7 @@ def create_ticket(
     new_ticket = Ticket(
         incidencia_id=ticket_data.incidencia_id,
         subincidencia_id=ticket_data.subincidencia_id,
+        created_by_user_id=current_user.id if current_user else None,
         description=ticket_data.description,
         attachment_path=ticket_data.attachment_path,
         status="open",
@@ -140,7 +142,6 @@ def create_ticket(
 
     return build_ticket_response(new_ticket)
 
-
 def get_tickets(
         db: Session,
         status: str = None,
@@ -148,9 +149,13 @@ def get_tickets(
         incidencia_id: int = None,
         subincidencia_id: int = None,
         created_from=None,
-        created_to=None
+        created_to=None,
+        current_user=None
 ):
     query = db.query(Ticket)
+
+    if current_user and current_user.role == "user":
+        query = query.filter(Ticket.created_by_user_id == current_user.id)
 
     if status:
         if status not in VALID_STATUS:

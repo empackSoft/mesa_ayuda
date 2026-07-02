@@ -22,6 +22,8 @@ class TicketUpdate(BaseModel):
 class TicketResponse(BaseModel):
     id: int
 
+    created_by_user_id: Optional[int]
+    created_by_user_name: Optional[str]
     incidencia_id: int
     incidencia: str
 

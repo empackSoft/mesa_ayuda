@@ -46,8 +46,10 @@ def create_new_ticket(
 ):
     return create_ticket(
         db,
-        ticket
+        ticket,
+        current_user
     )
+
 
 
 @router.get(
@@ -62,7 +64,7 @@ def list_tickets(
         created_from: Optional[datetime] = None,
         created_to: Optional[datetime] = None,
         db: Session = Depends(get_db),
-        current_user: User = Depends(require_support_or_admin)
+        current_user: User = Depends(require_user_or_above)
 ):
     return get_tickets(
         db=db,
@@ -71,7 +73,8 @@ def list_tickets(
         incidencia_id=incidencia_id,
         subincidencia_id=subincidencia_id,
         created_from=created_from,
-        created_to=created_to
+        created_to=created_to,
+        current_user=current_user
     )
 
 

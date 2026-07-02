@@ -16,6 +16,12 @@ class Ticket(Base):
         nullable=False
     )
 
+    created_by_user_id = Column(
+        Integer,
+        ForeignKey("users.id"),
+        nullable=True
+    )
+
     subincidencia_id = Column(
         Integer,
         ForeignKey("subincidencias.id"),
@@ -30,6 +36,7 @@ class Ticket(Base):
 
     created_at = Column(DateTime, default=datetime.utcnow)
 
+
     updated_at = Column(
         DateTime,
         default=datetime.utcnow,
@@ -38,3 +45,4 @@ class Ticket(Base):
 
     incidencia = relationship("Incidencia")
     subincidencia = relationship("Subincidencia")
+    created_by = relationship("User")

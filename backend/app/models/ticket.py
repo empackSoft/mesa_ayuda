@@ -1,7 +1,6 @@
 from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey
 from sqlalchemy.orm import relationship
 from datetime import datetime
-
 from database import Base
 
 
@@ -16,16 +15,22 @@ class Ticket(Base):
         nullable=False
     )
 
+    subincidencia_id = Column(
+        Integer,
+        ForeignKey("subincidencias.id"),
+        nullable=False
+    )
+
     created_by_user_id = Column(
         Integer,
         ForeignKey("users.id"),
         nullable=True
     )
 
-    subincidencia_id = Column(
+    assigned_to_user_id = Column(
         Integer,
-        ForeignKey("subincidencias.id"),
-        nullable=False
+        ForeignKey("users.id"),
+        nullable=True
     )
 
     description = Column(Text, nullable=False)
@@ -36,7 +41,6 @@ class Ticket(Base):
 
     created_at = Column(DateTime, default=datetime.utcnow)
 
-
     updated_at = Column(
         DateTime,
         default=datetime.utcnow,
@@ -45,4 +49,13 @@ class Ticket(Base):
 
     incidencia = relationship("Incidencia")
     subincidencia = relationship("Subincidencia")
-    created_by = relationship("User")
+
+    created_by = relationship(
+        "User",
+        foreign_keys=[created_by_user_id]
+    )
+
+    assigned_to = relationship(
+        "User",
+        foreign_keys=[assigned_to_user_id]
+    )

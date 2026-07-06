@@ -19,16 +19,24 @@ class TicketUpdate(BaseModel):
     priority: Optional[str] = None
 
 
+class TicketAssign(BaseModel):
+    assigned_to_user_id: int = Field(..., gt=0)
+
+
 class TicketResponse(BaseModel):
     id: int
 
-    created_by_user_id: Optional[int]
-    created_by_user_name: Optional[str]
     incidencia_id: int
     incidencia: str
 
     subincidencia_id: int
     subincidencia: str
+
+    created_by_user_id: Optional[int]
+    created_by_user_name: Optional[str]
+
+    assigned_to_user_id: Optional[int]
+    assigned_to_user_name: Optional[str]
 
     description: str
     attachment_path: Optional[str]

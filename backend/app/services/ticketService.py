@@ -2,9 +2,11 @@ from sqlalchemy.orm import Session
 from fastapi import HTTPException
 from sqlalchemy.exc import IntegrityError
 
+from models.user import User
 from models.ticket import Ticket
 from models.incidencia import Incidencia
 from models.subincidencia import Subincidencia
+
 
 from schemas.ticket import TicketCreate, TicketUpdate
 
@@ -22,7 +24,6 @@ VALID_PRIORITY = [
     "urgent"
 ]
 
-
 def build_ticket_response(ticket: Ticket):
     return {
         "id": ticket.id,
@@ -32,6 +33,8 @@ def build_ticket_response(ticket: Ticket):
         "subincidencia": ticket.subincidencia.name if ticket.subincidencia else None,
         "created_by_user_id": ticket.created_by_user_id,
         "created_by_user_name": ticket.created_by.name if ticket.created_by else None,
+        "assigned_to_user_id": ticket.assigned_to_user_id,
+        "assigned_to_user_name": ticket.assigned_to.name if ticket.assigned_to else None,
         "description": ticket.description,
         "attachment_path": ticket.attachment_path,
         "status": ticket.status,
@@ -40,6 +43,47 @@ def build_ticket_response(ticket: Ticket):
         "updated_at": ticket.updated_at
     }
 
+def assign_ticket(
+        db: Session,
+        ticket_id: int,
+        assigned_to_user_id: int
+):
+    ticket = find_ticket_by_id(
+        db,
+        ticket_id
+    )
+
+    assigned_user = (
+        db.query(User)
+        .filter(User.id == assigned_to_user_id)
+        .first()
+    )
+
+    if assigned_user is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Usuario asignado no encontrado"
+        )
+
+    if assigned_user.is_active is False:
+        raise HTTPException(
+            status_code=400,
+            detail="No se puede asignar a un usuario inactivo"
+        )
+
+    if assigned_user.role not in ["support", "admin"]:
+        raise HTTPException(
+            status_code=400,
+            detail="El ticket solo puede asignarse a soporte o administrador"
+        )
+
+    ticket.assigned_to_user_id = assigned_user.id
+    ticket.status = "in_progress"
+
+    db.commit()
+    db.refresh(ticket)
+
+    return build_ticket_response(ticket)
 
 def validate_catalog_relation(
         db: Session,

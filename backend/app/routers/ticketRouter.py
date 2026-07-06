@@ -13,6 +13,7 @@ from dependencies.auth import (
 from schemas.ticket import (
     TicketCreate,
     TicketUpdate,
+    TicketAssign,
     TicketResponse
 )
 
@@ -22,7 +23,8 @@ from services.ticketService import (
     get_ticket_by_id,
     update_ticket,
     close_ticket,
-    delete_ticket
+    delete_ticket,
+    assign_ticket
 )
 
 from models.user import User
@@ -50,8 +52,6 @@ def create_new_ticket(
         current_user
     )
 
-
-
 @router.get(
     "/",
     response_model=list[TicketResponse]
@@ -77,7 +77,6 @@ def list_tickets(
         current_user=current_user
     )
 
-
 @router.get(
     "/{ticket_id}",
     response_model=TicketResponse
@@ -91,7 +90,6 @@ def get_ticket(
         db,
         ticket_id
     )
-
 
 @router.put(
     "/{ticket_id}",
@@ -108,7 +106,6 @@ def update_existing_ticket(
         ticket_id,
         ticket
     )
-
 
 @router.patch(
     "/{ticket_id}/close",
@@ -134,4 +131,20 @@ def delete_existing_ticket(
     return delete_ticket(
         db,
         ticket_id
+    )
+
+@router.patch(
+    "/{ticket_id}/assign",
+    response_model=TicketResponse
+)
+def assign_existing_ticket(
+        ticket_id: int,
+        assign_data: TicketAssign,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(require_support_or_admin)
+):
+    return assign_ticket(
+        db=db,
+        ticket_id=ticket_id,
+        assigned_to_user_id=assign_data.assigned_to_user_id
     )

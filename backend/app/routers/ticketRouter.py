@@ -3,6 +3,9 @@ from sqlalchemy.orm import Session
 from typing import Optional
 from datetime import datetime
 from dependencies.database import get_db
+from schemas.ticket import TicketStatusUpdate
+from services.ticketService import change_ticket_status
+
 
 from dependencies.auth import (
     require_admin,
@@ -147,4 +150,20 @@ def assign_existing_ticket(
         db=db,
         ticket_id=ticket_id,
         assigned_to_user_id=assign_data.assigned_to_user_id
+    )
+
+@router.patch(
+    "/{ticket_id}/status",
+    response_model=TicketResponse
+)
+def update_ticket_status(
+        ticket_id: int,
+        status: TicketStatusUpdate,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(require_support_or_admin)
+):
+    return change_ticket_status(
+        db=db,
+        ticket_id=ticket_id,
+        status_data=status
     )

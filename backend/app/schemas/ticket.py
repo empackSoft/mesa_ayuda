@@ -2,7 +2,6 @@ from pydantic import BaseModel, Field
 from typing import Optional
 from datetime import datetime
 
-
 class TicketCreate(BaseModel):
     incidencia_id: int = Field(..., gt=0)
     subincidencia_id: int = Field(..., gt=0)
@@ -46,3 +45,7 @@ class TicketResponse(BaseModel):
 
     created_at: datetime
     updated_at: Optional[datetime]
+
+
+class TicketStatusUpdate(BaseModel):
+    status: str

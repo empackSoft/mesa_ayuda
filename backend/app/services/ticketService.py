@@ -8,7 +8,11 @@ from models.incidencia import Incidencia
 from models.subincidencia import Subincidencia
 
 
-from schemas.ticket import TicketCreate, TicketUpdate
+from schemas.ticket import (
+    TicketCreate,
+    TicketUpdate,
+    TicketStatusUpdate
+)
 
 VALID_STATUS = [
     "open",
@@ -23,6 +27,28 @@ VALID_PRIORITY = [
     "high",
     "urgent"
 ]
+
+VALID_TRANSITIONS = {
+    "open": [
+        "in_progress"
+    ],
+
+    "in_progress": [
+        "pending",
+        "resolved"
+    ],
+
+    "pending": [
+        "in_progress",
+        "resolved"
+    ],
+
+    "resolved": [
+        "closed"
+    ],
+
+    "closed": []
+}
 
 def build_ticket_response(ticket: Ticket):
     return {
@@ -351,3 +377,49 @@ def delete_ticket(
         "message": "Ticket eliminado correctamente",
         "ticket_id": ticket_id
     }
+
+
+def change_ticket_status(
+        db: Session,
+        ticket_id: int,
+        status_data: TicketStatusUpdate
+):
+    ticket = find_ticket_by_id(
+        db,
+        ticket_id
+    )
+
+    new_status = status_data.status
+
+    if new_status not in VALID_STATUS:
+        raise HTTPException(
+            status_code=400,
+            detail="Estado inválido"
+        )
+
+    if ticket.status == "closed":
+        raise HTTPException(
+            status_code=400,
+            detail="El ticket ya está cerrado"
+        )
+
+    if ticket.assigned_to_user_id is None:
+        raise HTTPException(
+            status_code=400,
+            detail="El ticket debe estar asignado antes de cambiar de estado"
+        )
+
+    valid_next = VALID_TRANSITIONS[ticket.status]
+
+    if new_status not in valid_next:
+        raise HTTPException(
+            status_code=400,
+            detail=f"No se puede cambiar de {ticket.status} a {new_status}"
+        )
+
+    ticket.status = new_status
+
+    db.commit()
+    db.refresh(ticket)
+
+    return build_ticket_response(ticket)

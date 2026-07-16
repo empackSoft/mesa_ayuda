@@ -4,7 +4,9 @@ from typing import Optional
 from datetime import datetime
 from dependencies.database import get_db
 from schemas.ticket import TicketStatusUpdate
+from schemas.ticketHistory import TicketHistoryResponse
 from services.ticketService import change_ticket_status
+from services.ticketHistoryService import get_ticket_history
 
 
 from dependencies.auth import (
@@ -166,4 +168,19 @@ def update_ticket_status(
         db=db,
         ticket_id=ticket_id,
         status_data=status
+    )
+
+
+@router.get(
+    "/{ticket_id}/history",
+    response_model=list[TicketHistoryResponse]
+)
+def get_history(
+        ticket_id: int,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(require_support_or_admin)
+):
+    return get_ticket_history(
+        db=db,
+        ticket_id=ticket_id
     )

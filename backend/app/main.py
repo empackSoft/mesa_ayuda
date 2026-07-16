@@ -9,6 +9,7 @@ from routers.incidenciaRouter import router as incidencia_router
 from models.user import User
 from routers.userRouter import router as user_router
 from routers.authRouter import router as auth_router
+from models.ticketHistory import TicketHistory
 
 
 Base.metadata.create_all(bind=engine)

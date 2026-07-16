@@ -6,6 +6,7 @@ from models.user import User
 from models.ticket import Ticket
 from models.incidencia import Incidencia
 from models.subincidencia import Subincidencia
+from services.ticketHistoryService import create_history
 
 
 from schemas.ticket import (
@@ -103,11 +104,22 @@ def assign_ticket(
             detail="El ticket solo puede asignarse a soporte o administrador"
         )
 
+    old_user = ticket.assigned_to_user_id
+
     ticket.assigned_to_user_id = assigned_user.id
     ticket.status = "in_progress"
 
     db.commit()
     db.refresh(ticket)
+
+    create_history(
+        db=db,
+        ticket_id=ticket.id,
+        user_id=assigned_user.id,
+        action="ASSIGN",
+        old_value=str(old_user) if old_user else None,
+        new_value=str(assigned_user.id)
+    )
 
     return build_ticket_response(ticket)
 
@@ -202,6 +214,14 @@ def create_ticket(
         db.add(new_ticket)
         db.commit()
         db.refresh(new_ticket)
+        create_history(
+            db=db,
+            ticket_id=new_ticket.id,
+            user_id=new_ticket.created_by_user_id,
+            action="CREATE",
+            old_value=None,
+            new_value="Ticket creado"
+        )
 
     except IntegrityError:
         db.rollback()
@@ -320,13 +340,36 @@ def update_ticket(
             status_code=400,
             detail="Prioridad inválida"
         )
+    changes = []
 
     for field, value in data.items():
+        old_value = getattr(ticket, field)
+
+        if old_value != value:
+
+            changes.append(
+                (
+                    field,
+                    str(old_value),
+                    str(value)
+                )
+            )
+
         setattr(ticket, field, value)
 
     try:
         db.commit()
         db.refresh(ticket)
+
+        for field, old_value, new_value in changes:
+            create_history(
+                db=db,
+                ticket_id=ticket.id,
+                user_id=ticket.assigned_to_user_id,
+                action=f"UPDATE_{field.upper()}",
+                old_value=old_value,
+                new_value=new_value
+            )
 
     except IntegrityError:
         db.rollback()
@@ -352,14 +395,23 @@ def close_ticket(
             status_code=400,
             detail="El ticket ya está cerrado"
         )
+    old_status = ticket.status
 
     ticket.status = "closed"
 
     db.commit()
     db.refresh(ticket)
 
-    return build_ticket_response(ticket)
+    create_history(
+        db=db,
+        ticket_id=ticket.id,
+        user_id=ticket.assigned_to_user_id,
+        action="CLOSE",
+        old_value=old_status,
+        new_value="closed"
+    )
 
+    return build_ticket_response(ticket)
 
 def delete_ticket(
         db: Session,
@@ -417,9 +469,19 @@ def change_ticket_status(
             detail=f"No se puede cambiar de {ticket.status} a {new_status}"
         )
 
+    old_status = ticket.status
     ticket.status = new_status
 
     db.commit()
     db.refresh(ticket)
+
+    create_history(
+        db=db,
+        ticket_id=ticket.id,
+        user_id=ticket.assigned_to_user_id,
+        action="STATUS",
+        old_value=old_status,
+        new_value=new_status
+    )
 
     return build_ticket_response(ticket)

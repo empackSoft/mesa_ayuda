@@ -38,7 +38,15 @@ from services.ticketService import (
 )
 
 from models.user import User
+from schemas.ticketComment import (
+    TicketCommentCreate,
+    TicketCommentResponse
+)
 
+from services.ticketCommentService import (
+    create_comment,
+    list_comments
+)
 
 
 router = APIRouter(
@@ -242,4 +250,38 @@ def download_ticket_attachment(
     return FileResponse(
         path=attachment.file_path,
         filename=attachment.original_name or os.path.basename(attachment.file_path)
+    )
+
+@router.post(
+    "/{ticket_id}/comments",
+    response_model=TicketCommentResponse,
+    status_code=status.HTTP_201_CREATED
+)
+def create_ticket_comment(
+        ticket_id: int,
+        comment: TicketCommentCreate,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(require_user_or_above)
+):
+    return create_comment(
+        db=db,
+        ticket_id=ticket_id,
+        comment_data=comment,
+        current_user=current_user
+    )
+
+
+@router.get(
+    "/{ticket_id}/comments",
+    response_model=list[TicketCommentResponse]
+)
+def list_ticket_comments(
+        ticket_id: int,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(require_user_or_above)
+):
+    return list_comments(
+        db=db,
+        ticket_id=ticket_id,
+        current_user=current_user
     )

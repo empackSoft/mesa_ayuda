@@ -14,11 +14,18 @@ from routers.authRouter import router as auth_router
 from models.ticketHistory import TicketHistory
 from models.ticketAttachment import TicketAttachment
 
+# CAMBIO PARA QUITAR ANTES DE USAR EN PRODUCCION
+ENABLE_DOCS = os.getenv("ENABLE_DOCS", "false").lower() == "true"
+
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI(
     title="Mesa Ayuda API",
-    version="1.0.0"
+    version="1.0.0",
+
+    # CAMBIO PARA QUITAR ANTES DE USAR EN PRODUCCION
+    docs_url="/mesa_ayuda/api/docs" if ENABLE_DOCS else None,
+    openapi_url="/mesa_ayuda/api/openapi.json" if ENABLE_DOCS else None
 )
 
 # Si no existe la carpeta tickets la creamos

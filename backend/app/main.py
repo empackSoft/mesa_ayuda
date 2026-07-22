@@ -1,4 +1,6 @@
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
+import os
 from sqlalchemy import text
 from database import engine, Base
 from models.ticket import Ticket
@@ -10,15 +12,23 @@ from models.user import User
 from routers.userRouter import router as user_router
 from routers.authRouter import router as auth_router
 from models.ticketHistory import TicketHistory
-
-
-Base.metadata.create_all(bind=engine)
+from models.ticketAttachment import TicketAttachment
 
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI(
     title="Mesa Ayuda API",
     version="1.0.0"
+)
+
+# Si no existe la carpeta tickets la creamos
+os.makedirs("uploads/tickets", exist_ok=True)
+
+# Publicamos archivos estaticos
+app.mount(
+    "/uploads",
+    StaticFiles(directory="uploads"),
+    name="uploads"
 )
 
 API_PREFIX = "/mesa_ayuda/api"

@@ -6,14 +6,12 @@ class TicketCreate(BaseModel):
     incidencia_id: int = Field(..., gt=0)
     subincidencia_id: int = Field(..., gt=0)
     description: str = Field(..., min_length=5)
-    attachment_path: Optional[str] = None
 
 
 class TicketUpdate(BaseModel):
     incidencia_id: Optional[int] = Field(None, gt=0)
     subincidencia_id: Optional[int] = Field(None, gt=0)
     description: Optional[str] = Field(None, min_length=5)
-    attachment_path: Optional[str] = None
     status: Optional[str] = None
     priority: Optional[str] = None
 
@@ -38,7 +36,7 @@ class TicketResponse(BaseModel):
     assigned_to_user_name: Optional[str]
 
     description: str
-    attachment_path: Optional[str]
+
 
     status: str
     priority: str

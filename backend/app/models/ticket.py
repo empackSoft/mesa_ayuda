@@ -34,7 +34,7 @@ class Ticket(Base):
     )
 
     description = Column(Text, nullable=False)
-    attachment_path = Column(String(255), nullable=True)
+
 
     status = Column(String(50), nullable=False, default="open")
     priority = Column(String(50), nullable=False, default="medium")
@@ -58,4 +58,10 @@ class Ticket(Base):
     assigned_to = relationship(
         "User",
         foreign_keys=[assigned_to_user_id]
+    )
+
+    attachments = relationship(
+        "TicketAttachment",
+        back_populates="ticket",
+        cascade="all, delete-orphan"
     )

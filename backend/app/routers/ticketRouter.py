@@ -1,4 +1,5 @@
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, status, UploadFile, File
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 from typing import Optional
 from datetime import datetime
@@ -7,7 +8,8 @@ from schemas.ticket import TicketStatusUpdate
 from schemas.ticketHistory import TicketHistoryResponse
 from services.ticketService import change_ticket_status
 from services.ticketHistoryService import get_ticket_history
-
+import os
+from schemas.ticketAttachment import TicketAttachmentResponse
 
 from dependencies.auth import (
     require_admin,
@@ -29,10 +31,14 @@ from services.ticketService import (
     update_ticket,
     close_ticket,
     delete_ticket,
-    assign_ticket
+    assign_ticket,
+    upload_attachment,
+    get_attachment,
+    list_attachments
 )
 
 from models.user import User
+
 
 
 router = APIRouter(
@@ -183,4 +189,57 @@ def get_history(
     return get_ticket_history(
         db=db,
         ticket_id=ticket_id
+    )
+
+
+
+@router.post(
+    "/{ticket_id}/attachment",
+    response_model=TicketAttachmentResponse
+)
+def upload_ticket_attachment(
+        ticket_id: int,
+        file: UploadFile = File(...),
+        db: Session = Depends(get_db),
+        current_user: User = Depends(require_support_or_admin)
+):
+    return upload_attachment(
+        db=db,
+        ticket_id=ticket_id,
+        file=file,
+        current_user=current_user
+    )
+
+
+@router.get(
+    "/{ticket_id}/attachments",
+    response_model=list[TicketAttachmentResponse]
+)
+def list_ticket_attachments(
+        ticket_id: int,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(require_support_or_admin)
+):
+    return list_attachments(
+        db=db,
+        ticket_id=ticket_id
+    )
+
+
+@router.get("/{ticket_id}/attachments/{attachment_id}")
+def download_ticket_attachment(
+        ticket_id: int,
+        attachment_id: int,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(require_support_or_admin)
+):
+    attachment = get_attachment(
+        db=db,
+        ticket_id=ticket_id,
+        attachment_id=attachment_id
+    )
+
+    return FileResponse(
+        path=attachment.file_path,
+        filename=attachment.original_name or os.path.basename(attachment.file_path)
     )

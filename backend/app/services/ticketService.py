@@ -1,5 +1,5 @@
 from sqlalchemy.orm import Session
-from fastapi import HTTPException
+from fastapi import UploadFile,HTTPException
 from sqlalchemy.exc import IntegrityError
 
 from models.user import User
@@ -7,13 +7,34 @@ from models.ticket import Ticket
 from models.incidencia import Incidencia
 from models.subincidencia import Subincidencia
 from services.ticketHistoryService import create_history
-
+import os
+import shutil
+import uuid
+from models.ticketAttachment import TicketAttachment
 
 from schemas.ticket import (
     TicketCreate,
     TicketUpdate,
     TicketStatusUpdate
 )
+
+# CONSTANTES
+UPLOAD_FOLDER = "uploads/tickets"
+
+ALLOWED_EXTENSIONS = {
+    ".png",
+    ".jpg",
+    ".jpeg",
+    ".pdf",
+    ".doc",
+    ".docx",
+    ".xls",
+    ".xlsx",
+    ".txt",
+    ".zip"
+}
+
+MAX_FILE_SIZE = 10 * 1024 * 1024
 
 VALID_STATUS = [
     "open",
@@ -63,7 +84,6 @@ def build_ticket_response(ticket: Ticket):
         "assigned_to_user_id": ticket.assigned_to_user_id,
         "assigned_to_user_name": ticket.assigned_to.name if ticket.assigned_to else None,
         "description": ticket.description,
-        "attachment_path": ticket.attachment_path,
         "status": ticket.status,
         "priority": ticket.priority,
         "created_at": ticket.created_at,
@@ -205,7 +225,6 @@ def create_ticket(
         subincidencia_id=ticket_data.subincidencia_id,
         created_by_user_id=current_user.id if current_user else None,
         description=ticket_data.description,
-        attachment_path=ticket_data.attachment_path,
         status="open",
         priority="medium"
     )
@@ -485,3 +504,124 @@ def change_ticket_status(
     )
 
     return build_ticket_response(ticket)
+
+def upload_attachment(
+        db: Session,
+        ticket_id: int,
+        file: UploadFile,
+        current_user=None
+):
+    ticket = find_ticket_by_id(
+        db,
+        ticket_id
+    )
+
+    if ticket.status == "closed":
+        raise HTTPException(
+            status_code=400,
+            detail="No se puede adjuntar archivos a un ticket cerrado"
+        )
+
+    extension = os.path.splitext(file.filename)[1].lower()
+
+    if extension not in ALLOWED_EXTENSIONS:
+        raise HTTPException(
+            status_code=400,
+            detail="Tipo de archivo no permitido"
+        )
+
+    contents = file.file.read()
+
+    if len(contents) == 0:
+        raise HTTPException(
+            status_code=400,
+            detail="El archivo está vacío"
+        )
+
+    if len(contents) > MAX_FILE_SIZE:
+        raise HTTPException(
+            status_code=400,
+            detail="El archivo excede el tamaño máximo permitido (10 MB)"
+        )
+
+    unique_name = f"{uuid.uuid4()}{extension}"
+
+    os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+    file_path = os.path.join(UPLOAD_FOLDER, unique_name)
+
+    with open(file_path, "wb") as buffer:
+        buffer.write(contents)
+
+    new_attachment = TicketAttachment(
+        ticket_id=ticket.id,
+        file_path=file_path,
+        original_name=file.filename,
+        uploaded_by=current_user.id if current_user else None
+    )
+
+    db.add(new_attachment)
+    db.commit()
+    db.refresh(new_attachment)
+
+    create_history(
+        db=db,
+        ticket_id=ticket.id,
+        user_id=current_user.id if current_user else None,
+        action="UPLOAD_ATTACHMENT",
+        old_value=None,
+        new_value=file_path
+    )
+
+    return new_attachment
+
+
+
+def list_attachments(
+        db: Session,
+        ticket_id: int
+):
+    ticket = find_ticket_by_id(
+        db,
+        ticket_id
+    )
+
+    return (
+        db.query(TicketAttachment)
+        .filter(TicketAttachment.ticket_id == ticket.id)
+        .order_by(TicketAttachment.id.desc())
+        .all()
+    )
+
+
+def get_attachment(
+        db: Session,
+        ticket_id: int,
+        attachment_id: int
+):
+    ticket = find_ticket_by_id(
+        db,
+        ticket_id
+    )
+
+    attachment = (
+        db.query(TicketAttachment)
+        .filter(
+            TicketAttachment.id == attachment_id,
+            TicketAttachment.ticket_id == ticket.id
+        )
+        .first()
+    )
+
+    if attachment is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Adjunto no encontrado"
+        )
+
+    if not os.path.exists(attachment.file_path):
+        raise HTTPException(
+            status_code=404,
+            detail="El archivo adjunto no se encuentra en el servidor"
+        )
+
+    return attachment

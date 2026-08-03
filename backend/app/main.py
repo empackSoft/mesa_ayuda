@@ -14,6 +14,11 @@ from routers.authRouter import router as auth_router
 from models.ticketHistory import TicketHistory
 from models.ticketAttachment import TicketAttachment
 from models.ticketComment import TicketComment
+from routers.dashboardRouter import router as dashboard_router
+
+
+
+
 
 # CAMBIO PARA QUITAR ANTES DE USAR EN PRODUCCION
 ENABLE_DOCS = os.getenv("ENABLE_DOCS", "false").lower() == "true"
@@ -53,7 +58,7 @@ app.include_router(ticket_router,prefix=API_PREFIX)
 app.include_router(incidencia_router,prefix=API_PREFIX)
 app.include_router(user_router,prefix=API_PREFIX)
 app.include_router(auth_router,prefix=API_PREFIX)
-
+app.include_router(dashboard_router,prefix=API_PREFIX)
 
 @app.get("/health")
 def health():

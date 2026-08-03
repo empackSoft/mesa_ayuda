@@ -11,6 +11,7 @@ import os
 import shutil
 import uuid
 from models.ticketAttachment import TicketAttachment
+from services.emailService import send_email, build_ticket_link
 
 from schemas.ticket import (
     TicketCreate,
@@ -140,6 +141,19 @@ def assign_ticket(
         old_value=str(old_user) if old_user else None,
         new_value=str(assigned_user.id)
     )
+    # Notificar al técnico asignado
+    if assigned_user.email:
+        link = build_ticket_link(ticket.id)
+        send_email(
+            to=assigned_user.email,
+            subject=f"Se te ha asignado el ticket #{ticket.id}",
+            body=(
+                f"Hola {assigned_user.name},\n\n"
+                f"Se te ha asignado el ticket #{ticket.id}.\n\n"
+                f"Puedes verlo aquí: {link}\n\n"
+                f"Sistema Mesa de Ayuda EmPack"
+            )
+        )
 
     return build_ticket_response(ticket)
 
@@ -241,6 +255,31 @@ def create_ticket(
             old_value=None,
             new_value="Ticket creado"
         )
+        # Notificar al equipo de soporte que hay un ticket nuevo
+        support_users = (
+            db.query(User)
+            .filter(
+                User.role.in_(["support", "admin"]),
+                User.is_active == True
+            )
+            .all()
+        )
+
+        link = build_ticket_link(new_ticket.id)
+
+        for support_user in support_users:
+            if support_user.email:
+                send_email(
+                    to=support_user.email,
+                    subject=f"Nuevo ticket #{new_ticket.id} creado",
+                    body=(
+                        f"Hola {support_user.name},\n\n"
+                        f"Se ha creado un nuevo ticket #{new_ticket.id}.\n\n"
+                        f"Descripción: {new_ticket.description}\n\n"
+                        f"Puedes verlo aquí: {link}\n\n"
+                        f"Sistema Mesa de Ayuda EmPack"
+                    )
+                )
 
     except IntegrityError:
         db.rollback()
@@ -430,6 +469,26 @@ def close_ticket(
         new_value="closed"
     )
 
+    # Notificar al creador del ticket sobre el cierre
+    creator = (
+        db.query(User)
+        .filter(User.id == ticket.created_by_user_id)
+        .first()
+    )
+
+    if creator and creator.email:
+        link = build_ticket_link(ticket.id)
+        send_email(
+            to=creator.email,
+            subject=f"Tu ticket #{ticket.id} ha sido cerrado",
+            body=(
+                f"Hola {creator.name},\n\n"
+                f"Tu ticket #{ticket.id} ha sido cerrado.\n\n"
+                f"Puedes verlo aquí: {link}\n\n"
+                f"Sistema Mesa de Ayuda EmPack"
+            )
+        )
+
     return build_ticket_response(ticket)
 
 def delete_ticket(
@@ -502,6 +561,26 @@ def change_ticket_status(
         old_value=old_status,
         new_value=new_status
     )
+    # Notificar al creador del ticket sobre el cambio de estado
+    creator = (
+        db.query(User)
+        .filter(User.id == ticket.created_by_user_id)
+        .first()
+    )
+
+    if creator and creator.email:
+        link = build_ticket_link(ticket.id)
+        send_email(
+            to=creator.email,
+            subject=f"Tu ticket #{ticket.id} cambió de estado",
+            body=(
+                f"Hola {creator.name},\n\n"
+                f"El estado de tu ticket #{ticket.id} cambió a: {new_status}.\n\n"
+                f"Puedes verlo aquí: {link}\n\n"
+                f"Sistema Mesa de Ayuda EmPack"
+            )
+        )
+
 
     return build_ticket_response(ticket)
 

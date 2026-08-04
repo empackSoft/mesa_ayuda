@@ -60,8 +60,9 @@ def send_email(to: str, subject: str, body: str):
         print(f"[EMAIL] Enviado a {to}: {subject}")
 
     except Exception as e:
-        # Best-effort: registrar y continuar
+        import traceback
         print(f"[EMAIL] Error al enviar a {to}: {e}")
+        traceback.print_exc()
 
 
 def build_ticket_link(ticket_id: int) -> str:

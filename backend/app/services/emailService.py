@@ -38,7 +38,7 @@ def send_email(to: str, subject: str, body: str):
         message["From"] = SMTP_FROM
         message["To"] = to
         message["Subject"] = subject
-        message.set_content(body)
+        message.set_content(body, charset="utf-8")
 
         if SMTP_USE_TLS:
             context = ssl.create_default_context()

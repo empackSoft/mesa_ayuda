@@ -59,6 +59,7 @@ def send_email(to: str, subject: str, body: str):
 
         print(f"[EMAIL] Enviado a {to}: {subject}")
 
+
     except Exception as e:
         import traceback
         print(f"[EMAIL] Error al enviar a {to}: {e}")

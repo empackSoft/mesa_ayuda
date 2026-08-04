@@ -41,17 +41,21 @@ def send_email(to: str, subject: str, body: str):
         message["Subject"] = Header(subject, "utf-8").encode()
         message.set_content(body, charset="utf-8")
 
+        raw_message = message.as_bytes()
+
         if SMTP_USE_TLS:
             context = ssl.create_default_context()
             with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=10) as server:
+                server.ehlo()
                 server.starttls(context=context)
+                server.ehlo()
                 server.login(SMTP_USER, SMTP_PASSWORD)
-                server.send_message(message)
+                server.sendmail(SMTP_FROM, [to], raw_message)
         else:
             context = ssl.create_default_context()
             with smtplib.SMTP_SSL(SMTP_HOST, SMTP_PORT, context=context, timeout=10) as server:
                 server.login(SMTP_USER, SMTP_PASSWORD)
-                server.send_message(message)
+                server.sendmail(SMTP_FROM, [to], raw_message)
 
         print(f"[EMAIL] Enviado a {to}: {subject}")
 

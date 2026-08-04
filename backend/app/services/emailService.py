@@ -2,6 +2,7 @@ import smtplib
 import ssl
 import os
 from email.message import EmailMessage
+from email.header import Header
 
 
 SMTP_HOST = os.getenv("SMTP_HOST")
@@ -37,7 +38,7 @@ def send_email(to: str, subject: str, body: str):
         message = EmailMessage()
         message["From"] = SMTP_FROM
         message["To"] = to
-        message["Subject"] = subject
+        message["Subject"] = Header(subject, "utf-8").encode()
         message.set_content(body, charset="utf-8")
 
         if SMTP_USE_TLS:

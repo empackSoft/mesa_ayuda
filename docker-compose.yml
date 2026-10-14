@@ -40,7 +40,7 @@ services:
       - POSTGRES_PASSWORD=3MtmNv43A3
       - POSTGRES_DB=mesa_db
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - vol_mesa_final:/var/lib/postgresql/data
     healthcheck:

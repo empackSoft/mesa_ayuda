@@ -5,3 +5,9 @@ __pycache__/
 .idea/
 postgres/
 node_modules/
+# Adjuntos subidos por usuarios (viven en el volumen, no en git)
+backend/app/uploads/tickets/*
+!backend/app/uploads/tickets/.gitkeep
+
+# Respaldos de editores
+*.save

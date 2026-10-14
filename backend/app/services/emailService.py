@@ -3,7 +3,7 @@ import ssl
 import os
 from email.message import EmailMessage
 from email.header import Header
-
+from email.utils import formatdate, make_msgid
 
 SMTP_HOST = os.getenv("SMTP_HOST")
 SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
@@ -39,6 +39,8 @@ def send_email(to: str, subject: str, body: str):
         message["From"] = SMTP_FROM
         message["To"] = to
         message["Subject"] = Header(subject, "utf-8").encode()
+        message["Date"] = formatdate(localtime=True)
+        message["Message-ID"] = make_msgid(domain=SMTP_FROM.split("@")[-1])
         message.set_content(body, charset="utf-8")
 
         raw_message = message.as_bytes()
@@ -59,11 +61,8 @@ def send_email(to: str, subject: str, body: str):
 
         print(f"[EMAIL] Enviado a {to}: {subject}")
 
-
     except Exception as e:
-        import traceback
         print(f"[EMAIL] Error al enviar a {to}: {e}")
-        traceback.print_exc()
 
 
 def build_ticket_link(ticket_id: int) -> str:

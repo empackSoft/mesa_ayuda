@@ -54,16 +54,17 @@ def run(recipients: list[str]):
     context = ssl.create_default_context()
     if SMTP_USE_TLS:
         server = smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=15)
-        server.set_debuglevel(1)
         server.ehlo()
         server.starttls(context=context)
         server.ehlo()
     else:
         server = smtplib.SMTP_SSL(SMTP_HOST, SMTP_PORT, context=context, timeout=15)
-        server.set_debuglevel(1)
 
     with server:
         server.login(SMTP_USER, SMTP_PASSWORD)
+        print("[OK] Login correcto")
+        # Depuración después del login: así no se imprime la contraseña (AUTH en base64)
+        server.set_debuglevel(1)
         for to in recipients:
             refused = server.sendmail(SMTP_FROM, [to], build_message(to))
             if refused:

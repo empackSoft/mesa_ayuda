@@ -1,5 +1,4 @@
 from fastapi import FastAPI
-from fastapi.staticfiles import StaticFiles
 import os
 from sqlalchemy import text
 from database import engine, Base
@@ -34,15 +33,9 @@ app = FastAPI(
     openapi_url="/mesa_ayuda/api/openapi.json" if ENABLE_DOCS else None
 )
 
-# Si no existe la carpeta tickets la creamos
+# Si no existe la carpeta tickets la creamos.
+# Los adjuntos NO se publican: solo se descargan por la API, que revisa permisos.
 os.makedirs("uploads/tickets", exist_ok=True)
-
-# Publicamos archivos estaticos
-app.mount(
-    "/uploads",
-    StaticFiles(directory="uploads"),
-    name="uploads"
-)
 
 API_PREFIX = "/mesa_ayuda/api"
 
@@ -77,8 +70,8 @@ def db_check():
             "database": "connected"
         }
 
-    except Exception as e:
+    except Exception:
+        # No se expone el detalle del error (puede incluir host/usuario de la BD)
         return {
-            "database": "error",
-            "detail": str(e)
+            "database": "error"
         }

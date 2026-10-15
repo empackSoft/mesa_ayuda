@@ -16,9 +16,11 @@ def get_status_counts(db: Session):
     return {status: count for status, count in rows}
 
 
+# Solo tickets abiertos (sin cerrar): es la carga de trabajo pendiente
 def get_priority_counts(db: Session):
     rows = (
         db.query(Ticket.priority, func.count(Ticket.id))
+        .filter(Ticket.status != "closed")
         .group_by(Ticket.priority)
         .all()
     )

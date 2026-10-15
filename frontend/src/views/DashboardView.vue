@@ -114,7 +114,7 @@ const technicians = computed(() => {
         <v-card class="pa-5 h-100">
           <div class="tile-label">Prioridad urgente</div>
           <div class="tile-value">{{ data.priority_counts?.urgent ?? 0 }}</div>
-          <div class="text-body-2 text-secondary-label">incluye cerrados</div>
+          <div class="text-body-2 text-secondary-label">sin cerrar</div>
         </v-card>
       </v-col>
     </v-row>
@@ -128,7 +128,7 @@ const technicians = computed(() => {
       </v-col>
       <v-col cols="12" md="6" lg="4">
         <v-card class="pa-5 h-100">
-          <div class="section-title">Tickets por prioridad</div>
+          <div class="section-title">Tickets abiertos por prioridad</div>
           <p class="text-caption text-secondary-label mb-4">Todos los tickets, incluidos los cerrados.</p>
           <BarList :items="byPriority" />
         </v-card>

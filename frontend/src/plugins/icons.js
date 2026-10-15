@@ -7,7 +7,7 @@ import {
   Flag, Hammer, History, House, Image, Inbox, Info, LifeBuoy, Loader, Lock,
   LogOut, Mail, MapPinOff, Menu, MessageSquare, Minus, Paperclip, Pencil, Plus,
   RefreshCw, Search, Send, Shapes, Square, SquareCheck, SquareMinus, Star,
-  StarHalf, Ticket, TriangleAlert, Upload, UserPlus, Users, X,
+  StarHalf, Ticket, TrendingDown, TrendingUp, TriangleAlert, Upload, UserPlus, Users, X,
 } from 'lucide-vue-next'
 
 // Registro explícito: solo se incluyen en el build los iconos que se usan.
@@ -70,6 +70,8 @@ const ICONS = {
   star: Star,
   'star-half': StarHalf,
   ticket: Ticket,
+  'trending-down': TrendingDown,
+  'trending-up': TrendingUp,
   'triangle-alert': TriangleAlert,
   upload: Upload,
   'user-plus': UserPlus,

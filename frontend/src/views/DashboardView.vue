@@ -2,6 +2,7 @@
 import { computed, onMounted, ref } from 'vue'
 import http, { errorMessage } from '../api/http'
 import BarList from '../components/BarList.vue'
+import TrendAreaChart from '../components/TrendAreaChart.vue'
 import { formatDuration } from '../utils/format'
 import { PRIORITY_LABELS, STATUS_LABELS } from '../utils/labels'
 
@@ -45,6 +46,44 @@ const byPriority = computed(() =>
 
 const times = computed(() => data.value?.resolution_times ?? {})
 
+// --- Tendencia diaria (creados vs resueltos) ---
+// Colores validados para daltonismo; azul y dorado de la paleta EmPack
+const SERIES = [
+  { key: 'created', label: 'Creados', color: '#2B5797' },
+  { key: 'resolved', label: 'Resueltos', color: '#C98A2E' },
+]
+const RANGES = [
+  { value: 90, label: '3 meses', caption: 'últimos 3 meses' },
+  { value: 30, label: '30 días', caption: 'últimos 30 días' },
+  { value: 7, label: '7 días', caption: 'últimos 7 días' },
+]
+const range = ref(30)
+const rangeCaption = computed(() => RANGES.find((r) => r.value === range.value)?.caption)
+
+const trend = computed(() => data.value?.trend ?? [])
+const trendPoints = computed(() => trend.value.slice(-range.value))
+const rangeTotals = computed(() =>
+  Object.fromEntries(SERIES.map((s) => [s.key, trendPoints.value.reduce((a, p) => a + (p[s.key] ?? 0), 0)])),
+)
+
+function sumCreated(fromEnd, length) {
+  const end = trend.value.length - fromEnd
+  return trend.value.slice(Math.max(0, end - length), end).reduce((a, p) => a + p.created, 0)
+}
+const createdThisWeek = computed(() => sumCreated(0, 7))
+const createdLastWeek = computed(() => sumCreated(7, 7))
+const weekDelta = computed(() => createdThisWeek.value - createdLastWeek.value)
+const weekText = computed(() => {
+  const d = weekDelta.value
+  if (d === 0) return 'Igual que la semana pasada'
+  return d > 0 ? `${d} más que la semana pasada` : `${-d} menos que la semana pasada`
+})
+
+const unattendedPct = computed(() =>
+  active.value ? Math.round(((statusCounts.value.open ?? 0) / active.value) * 100) : 0,
+)
+const urgent = computed(() => data.value?.priority_counts?.urgent ?? 0)
+
 const timeByPriority = computed(() =>
   [...PRIORITIES]
     .reverse()
@@ -85,51 +124,113 @@ const technicians = computed(() => {
   <v-progress-linear v-if="loading && !data" indeterminate color="primary" />
 
   <template v-if="data">
-    <!-- Indicadores principales -->
-    <v-row>
-      <v-col cols="12" sm="6" lg="3">
-        <v-card class="pa-5 h-100">
-          <div class="tile-label">Tickets activos</div>
-          <div class="tile-value">{{ active }}</div>
-          <div class="text-body-2 text-secondary-label">de {{ total }} en total</div>
-        </v-card>
-      </v-col>
-      <v-col cols="12" sm="6" lg="3">
-        <v-card class="pa-5 h-100">
-          <div class="tile-label">Sin atender</div>
-          <div class="tile-value">{{ statusCounts.open ?? 0 }}</div>
-          <div class="text-body-2 text-secondary-label">en estado Abierto</div>
-        </v-card>
-      </v-col>
-      <v-col cols="12" sm="6" lg="3">
-        <v-card class="pa-5 h-100">
-          <div class="tile-label">Tiempo promedio de resolución</div>
-          <div class="tile-value">{{ formatDuration(times.average_seconds_general) }}</div>
-          <div class="text-body-2 text-secondary-label">
-            {{ times.total_resolved ?? 0 }} ticket(s) resuelto(s)
+    <!-- Indicadores principales: una sola línea desde tablet -->
+    <v-row dense>
+      <v-col cols="6" md="3">
+        <v-card class="kpi">
+          <div class="kpi-head">
+            <span class="kpi-label">Tickets activos</span>
+            <v-chip size="x-small" variant="outlined" class="kpi-badge">
+              <v-icon :icon="weekDelta > 0 ? 'trending-up' : weekDelta < 0 ? 'trending-down' : 'minus'" start size="12" />
+              {{ createdThisWeek }} en 7 días
+            </v-chip>
+          </div>
+          <div class="kpi-value">{{ active }}</div>
+          <div class="kpi-foot">
+            <strong>{{ weekText }}</strong>
+            <span>de {{ total }} tickets en total</span>
           </div>
         </v-card>
       </v-col>
-      <v-col cols="12" sm="6" lg="3">
-        <v-card class="pa-5 h-100">
-          <div class="tile-label">Prioridad urgente</div>
-          <div class="tile-value">{{ data.priority_counts?.urgent ?? 0 }}</div>
-          <div class="text-body-2 text-secondary-label">sin cerrar</div>
+      <v-col cols="6" md="3">
+        <v-card class="kpi">
+          <div class="kpi-head">
+            <span class="kpi-label">Sin atender</span>
+            <v-chip size="x-small" variant="outlined" class="kpi-badge">{{ unattendedPct }}% de activos</v-chip>
+          </div>
+          <div class="kpi-value">{{ statusCounts.open ?? 0 }}</div>
+          <div class="kpi-foot">
+            <strong>En estado Abierto</strong>
+            <span>Nadie los ha tomado todavía</span>
+          </div>
+        </v-card>
+      </v-col>
+      <v-col cols="6" md="3">
+        <v-card class="kpi">
+          <div class="kpi-head">
+            <span class="kpi-label">Tiempo promedio de resolución</span>
+          </div>
+          <div class="kpi-value">{{ formatDuration(times.average_seconds_general) }}</div>
+          <div class="kpi-foot">
+            <strong>{{ times.total_resolved ?? 0 }} ticket(s) resuelto(s)</strong>
+            <span>De que se crea a que se resuelve</span>
+          </div>
+        </v-card>
+      </v-col>
+      <v-col cols="6" md="3">
+        <v-card class="kpi">
+          <div class="kpi-head">
+            <span class="kpi-label">Prioridad urgente</span>
+            <v-chip size="x-small" :color="urgent ? 'error' : 'success'" class="kpi-badge">
+              <v-icon :icon="urgent ? 'triangle-alert' : 'circle-check'" start size="12" />
+              {{ urgent ? 'Atender ya' : 'Al día' }}
+            </v-chip>
+          </div>
+          <div class="kpi-value">{{ urgent }}</div>
+          <div class="kpi-foot">
+            <strong>Urgentes sin cerrar</strong>
+            <span>{{ data.priority_counts?.high ?? 0 }} más de prioridad alta</span>
+          </div>
         </v-card>
       </v-col>
     </v-row>
 
-    <v-row class="mt-1">
+    <!-- Tendencia -->
+    <v-row dense class="mt-2">
+      <v-col cols="12">
+        <v-card class="pa-5">
+          <div class="d-flex flex-wrap align-start ga-3 mb-3">
+            <div>
+              <div class="section-title mb-0">Tickets creados y resueltos</div>
+              <div class="text-body-2 text-secondary-label">Por día, {{ rangeCaption }}</div>
+            </div>
+            <v-spacer />
+            <v-btn-toggle
+              v-model="range"
+              mandatory
+              density="compact"
+              variant="outlined"
+              divided
+              rounded="lg"
+              class="range-toggle"
+            >
+              <v-btn v-for="r in RANGES" :key="r.value" :value="r.value" size="small">{{ r.label }}</v-btn>
+            </v-btn-toggle>
+          </div>
+          <div class="legend mb-2">
+            <span v-for="s in SERIES" :key="s.key" class="legend-item">
+              <span class="legend-swatch" :style="{ background: s.color }" />
+              {{ s.label }}
+              <strong>{{ rangeTotals[s.key] }}</strong>
+            </span>
+          </div>
+          <TrendAreaChart :points="trendPoints" :series="SERIES" />
+        </v-card>
+      </v-col>
+    </v-row>
+
+    <v-row dense class="mt-2">
       <v-col cols="12" md="6" lg="4">
         <v-card class="pa-5 h-100">
           <div class="section-title">Tickets por estado</div>
+          <p class="text-caption text-secondary-label mb-4">Incluye los cerrados.</p>
           <BarList :items="byStatus" />
         </v-card>
       </v-col>
       <v-col cols="12" md="6" lg="4">
         <v-card class="pa-5 h-100">
           <div class="section-title">Tickets abiertos por prioridad</div>
-          <p class="text-caption text-secondary-label mb-4">Todos los tickets, incluidos los cerrados.</p>
+          <p class="text-caption text-secondary-label mb-4">Solo tickets sin cerrar.</p>
           <BarList :items="byPriority" />
         </v-card>
       </v-col>
@@ -145,7 +246,7 @@ const technicians = computed(() => {
 
     </v-row>
 
-    <v-row class="mt-1">
+    <v-row dense class="mt-2">
       <v-col cols="12">
         <v-card>
           <div class="section-title pa-5 pb-2">Rendimiento por técnico</div>
@@ -179,18 +280,72 @@ const technicians = computed(() => {
 </template>
 
 <style scoped>
-.tile-label {
+.kpi {
+  height: 100%;
+  padding: 16px 18px;
+  background: linear-gradient(180deg, rgba(11, 40, 121, 0.035), #fff 70%);
+}
+.kpi-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.kpi-label {
   font-size: 13px;
   font-weight: 500;
   color: var(--app-text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
-.tile-value {
-  font-size: 34px;
+.kpi-badge {
+  flex-shrink: 0;
+  font-weight: 500;
+}
+.kpi-value {
+  font-size: 28px;
   font-weight: 600;
   letter-spacing: -0.03em;
   line-height: 1.2;
-  margin: 6px 0 2px;
+  margin: 6px 0 10px;
   font-variant-numeric: tabular-nums;
+}
+.kpi-foot {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 12px;
+  color: var(--app-text-secondary);
+}
+.kpi-foot strong {
+  font-weight: 500;
+  color: var(--app-text);
+}
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  font-size: 13px;
+  color: var(--app-text-secondary);
+}
+.legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.legend-item strong {
+  color: var(--app-text);
+  font-variant-numeric: tabular-nums;
+}
+.legend-swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+}
+.range-toggle .v-btn {
+  text-transform: none;
+  letter-spacing: 0;
 }
 .section-title {
   font-weight: 600;

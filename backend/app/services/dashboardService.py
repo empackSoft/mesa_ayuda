@@ -1,3 +1,5 @@
+from datetime import datetime, timedelta
+
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 
@@ -163,8 +165,67 @@ def get_resolution_times(db: Session):
         "by_technician": by_technician_avg
     }
 
+# Las fechas se guardan en UTC; los días se agrupan en hora de México (UTC-6, sin horario de verano)
+LOCAL_OFFSET = timedelta(hours=-6)
+TREND_DAYS = 90
+
+
+def get_ticket_trend(db: Session, days: int = TREND_DAYS):
+    """
+    Tickets creados y resueltos por día en los últimos `days` días.
+    Resuelto = primer paso a 'resolved' del historial (igual que los tiempos de resolución).
+    Devuelve todos los días, aunque tengan 0.
+    """
+    today = (datetime.utcnow() + LOCAL_OFFSET).date()
+    first_day = today - timedelta(days=days - 1)
+    since = datetime.combine(first_day, datetime.min.time()) - LOCAL_OFFSET
+
+    created_rows = (
+        db.query(Ticket.created_at)
+        .filter(Ticket.created_at >= since)
+        .all()
+    )
+
+    resolved_rows = (
+        db.query(func.min(TicketHistory.created_at))
+        .filter(
+            TicketHistory.action == "STATUS",
+            TicketHistory.new_value == "resolved"
+        )
+        .group_by(TicketHistory.ticket_id)
+        .having(func.min(TicketHistory.created_at) >= since)
+        .all()
+    )
+
+    def local_day(value):
+        if value.tzinfo is not None:
+            value = value.replace(tzinfo=None)
+        return (value + LOCAL_OFFSET).date()
+
+    days_map = {
+        first_day + timedelta(days=i): {"created": 0, "resolved": 0}
+        for i in range(days)
+    }
+
+    for (created_at,) in created_rows:
+        day = local_day(created_at)
+        if day in days_map:
+            days_map[day]["created"] += 1
+
+    for (resolved_at,) in resolved_rows:
+        day = local_day(resolved_at)
+        if day in days_map:
+            days_map[day]["resolved"] += 1
+
+    return [
+        {"date": day.isoformat(), **counts}
+        for day, counts in days_map.items()
+    ]
+
+
 def get_dashboard(db: Session):
     return {
+        "trend": get_ticket_trend(db),
         "status_counts": get_status_counts(db),
         "priority_counts": get_priority_counts(db),
         "performance_by_technician": get_performance_by_technician(db),

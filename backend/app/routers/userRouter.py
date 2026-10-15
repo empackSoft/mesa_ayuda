@@ -2,16 +2,24 @@ from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
 
 from dependencies.database import get_db
+from dependencies.auth import (
+    require_admin,
+    require_support_or_admin
+)
+
+from models.user import User
 
 from schemas.user import (
     UserCreate,
     UserUpdate,
-    UserResponse
+    UserResponse,
+    StaffResponse
 )
 
 from services.userService import (
     create_user,
     get_users,
+    get_staff_users,
     get_user_by_id,
     update_user,
     deactivate_user
@@ -31,7 +39,8 @@ router = APIRouter(
 )
 def create_new_user(
         user: UserCreate,
-        db: Session = Depends(get_db)
+        db: Session = Depends(get_db),
+        current_user: User = Depends(require_admin)
 ):
     return create_user(
         db,
@@ -44,9 +53,22 @@ def create_new_user(
     response_model=list[UserResponse]
 )
 def list_users(
-        db: Session = Depends(get_db)
+        db: Session = Depends(get_db),
+        current_user: User = Depends(require_admin)
 ):
     return get_users(db)
+
+
+# Soporte/admin activos, para elegir a quién asignar un ticket
+@router.get(
+    "/staff",
+    response_model=list[StaffResponse]
+)
+def list_staff(
+        db: Session = Depends(get_db),
+        current_user: User = Depends(require_support_or_admin)
+):
+    return get_staff_users(db)
 
 
 @router.get(
@@ -55,7 +77,8 @@ def list_users(
 )
 def get_user(
         user_id: int,
-        db: Session = Depends(get_db)
+        db: Session = Depends(get_db),
+        current_user: User = Depends(require_admin)
 ):
     return get_user_by_id(
         db,
@@ -70,12 +93,14 @@ def get_user(
 def update_existing_user(
         user_id: int,
         user: UserUpdate,
-        db: Session = Depends(get_db)
+        db: Session = Depends(get_db),
+        current_user: User = Depends(require_admin)
 ):
     return update_user(
         db,
         user_id,
-        user
+        user,
+        current_user
     )
 
 
@@ -85,9 +110,11 @@ def update_existing_user(
 )
 def deactivate_existing_user(
         user_id: int,
-        db: Session = Depends(get_db)
+        db: Session = Depends(get_db),
+        current_user: User = Depends(require_admin)
 ):
     return deactivate_user(
         db,
-        user_id
+        user_id,
+        current_user
     )

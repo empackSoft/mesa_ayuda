@@ -19,6 +19,18 @@ def get_users(db: Session):
     )
 
 
+def get_staff_users(db: Session):
+    return (
+        db.query(User)
+        .filter(
+            User.role.in_(["support", "admin"]),
+            User.is_active == True
+        )
+        .order_by(User.name.asc())
+        .all()
+    )
+
+
 def get_user_by_id(
         db: Session,
         user_id: int
@@ -89,7 +101,8 @@ def create_user(
 def update_user(
         db: Session,
         user_id: int,
-        user_data: UserUpdate
+        user_data: UserUpdate,
+        current_user=None
 ):
     user = get_user_by_id(
         db,
@@ -97,6 +110,20 @@ def update_user(
     )
 
     data = user_data.model_dump(exclude_unset=True)
+
+    # Un admin no puede quitarse su rol ni desactivarse (evita quedarse sin administradores)
+    if current_user is not None and current_user.id == user.id:
+        if "role" in data and data["role"] != user.role:
+            raise HTTPException(
+                status_code=400,
+                detail="No puedes cambiar tu propio rol"
+            )
+
+        if data.get("is_active") is False:
+            raise HTTPException(
+                status_code=400,
+                detail="No puedes desactivar tu propia cuenta"
+            )
 
     if "role" in data and data["role"] not in VALID_ROLES:
         raise HTTPException(
@@ -131,12 +158,19 @@ def update_user(
 
 def deactivate_user(
         db: Session,
-        user_id: int
+        user_id: int,
+        current_user=None
 ):
     user = get_user_by_id(
         db,
         user_id
     )
+
+    if current_user is not None and current_user.id == user.id:
+        raise HTTPException(
+            status_code=400,
+            detail="No puedes desactivar tu propia cuenta"
+        )
 
     if user.is_active is False:
         raise HTTPException(

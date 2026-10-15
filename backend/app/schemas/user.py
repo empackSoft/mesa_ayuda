@@ -32,3 +32,12 @@ class UserResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class StaffResponse(BaseModel):
+    id: int
+    name: str
+    role: str
+
+    class Config:
+        from_attributes = True

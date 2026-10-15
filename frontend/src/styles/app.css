@@ -1,0 +1,86 @@
+/* Estilo general: sobrio, mucho espacio, líneas finas, inspirado en la estética de Apple */
+
+:root {
+  --v-font-body: 'Inter Variable', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --v-font-heading: var(--v-font-body);
+
+  --app-text: #1d1d1f;
+  --app-text-secondary: #6e6e73;
+  --app-hairline: rgba(0, 0, 0, 0.08);
+  --app-glass: rgba(255, 255, 255, 0.72);
+  --app-shadow-float: 0 8px 30px rgba(0, 0, 0, 0.08), 0 1px 3px rgba(0, 0, 0, 0.06);
+}
+
+body {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-feature-settings: 'cv11', 'ss01';
+  color: var(--app-text);
+}
+
+.v-application {
+  letter-spacing: -0.01em;
+}
+
+/* Títulos: semibold, ligeramente compactos */
+.text-h3, .text-h4, .text-h5, .text-h6 {
+  font-weight: 600 !important;
+  letter-spacing: -0.02em !important;
+}
+
+/* Botones sin mayúsculas ni espaciado de Material */
+.v-btn {
+  text-transform: none !important;
+  letter-spacing: -0.005em !important;
+  font-weight: 500 !important;
+}
+
+/* Barras translúcidas (efecto vidrio esmerilado) */
+.app-glass {
+  background: var(--app-glass) !important;
+  backdrop-filter: saturate(180%) blur(20px);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+}
+
+/* Elementos flotantes con sombra suave */
+.v-overlay__content > .v-card,
+.v-overlay__content > .v-list,
+.v-menu > .v-overlay__content > .v-sheet {
+  box-shadow: var(--app-shadow-float) !important;
+  border: 1px solid var(--app-hairline);
+}
+
+/* Campos de texto: gris claro sin borde, como en macOS */
+.v-field--variant-solo-filled {
+  background: rgba(0, 0, 0, 0.04) !important;
+  box-shadow: none !important;
+}
+.v-field--variant-solo-filled.v-field--focused {
+  background: #fff !important;
+  box-shadow: 0 0 0 3px rgba(11, 40, 121, 0.18) !important;
+}
+
+/* Tarjetas que llevan a otra pantalla: hover sutil */
+.v-card--link {
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.v-card--link:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--app-shadow-float);
+}
+.v-card--link > .v-card__overlay {
+  display: none;
+}
+
+.text-secondary-label {
+  color: var(--app-text-secondary);
+}
+
+/* Etiqueta encima de un campo de formulario */
+.field-label {
+  display: block;
+  font-size: 13px;
+  font-weight: 500;
+  margin: 0 0 6px 2px;
+  color: var(--app-text-secondary);
+}

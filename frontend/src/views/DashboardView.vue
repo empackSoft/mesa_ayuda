@@ -3,6 +3,7 @@ import { computed, onMounted, ref } from 'vue'
 import http, { errorMessage } from '../api/http'
 import BarList from '../components/BarList.vue'
 import TrendAreaChart from '../components/TrendAreaChart.vue'
+import HeatmapGrid from '../components/HeatmapGrid.vue'
 import { formatDuration } from '../utils/format'
 import { PRIORITY_LABELS, STATUS_LABELS } from '../utils/labels'
 
@@ -83,6 +84,44 @@ const unattendedPct = computed(() =>
   active.value ? Math.round(((statusCounts.value.open ?? 0) / active.value) * 100) : 0,
 )
 const urgent = computed(() => data.value?.priority_counts?.urgent ?? 0)
+
+// --- Categorías: las 7 con más tickets y el resto junto en "Otras" ---
+const TOP_CATEGORIES = 7
+const byCategory = computed(() => {
+  const list = data.value?.category_counts ?? []
+  const top = list.slice(0, TOP_CATEGORIES)
+  const rest = list.slice(TOP_CATEGORIES)
+  const items = top.map((c) => ({
+    key: c.incidencia_id,
+    label: c.name,
+    value: c.total,
+    text: `${c.total} · ${c.open} sin cerrar`,
+  }))
+  if (rest.length) {
+    const total = rest.reduce((a, c) => a + c.total, 0)
+    const open = rest.reduce((a, c) => a + c.open, 0)
+    items.push({ key: 'otras', label: `Otras (${rest.length})`, value: total, text: `${total} · ${open} sin cerrar` })
+  }
+  return items
+})
+
+// --- Antigüedad de los tickets sin resolver ---
+const AGING_LABELS = {
+  lt_1d: 'Menos de 1 día',
+  '1_3d': '1 a 3 días',
+  '3_7d': '3 a 7 días',
+  '1_4w': '1 a 4 semanas',
+  gt_4w: 'Más de 4 semanas',
+}
+const byAging = computed(() =>
+  Object.entries(AGING_LABELS).map(([key, label]) => ({
+    key,
+    label,
+    value: data.value?.open_aging?.[key] ?? 0,
+  })),
+)
+const unresolvedTotal = computed(() => byAging.value.reduce((a, i) => a + i.value, 0))
+const oldUnresolved = computed(() => (data.value?.open_aging?.['1_4w'] ?? 0) + (data.value?.open_aging?.gt_4w ?? 0))
 
 const kpis = computed(() => [
   {
@@ -211,6 +250,43 @@ const technicians = computed(() => {
             </span>
           </div>
           <TrendAreaChart :points="trendPoints" :series="SERIES" />
+        </v-card>
+      </v-col>
+    </v-row>
+
+    <!-- Categorías y antigüedad -->
+    <v-row dense class="mt-2">
+      <v-col cols="12" md="6">
+        <v-card class="pa-5 h-100">
+          <div class="section-title">Tickets por categoría</div>
+          <p class="text-caption text-secondary-label mb-4">Qué tipo de problema llega más. Total y cuántos siguen sin cerrar.</p>
+          <BarList :items="byCategory" empty-text="Aún no hay tickets." />
+        </v-card>
+      </v-col>
+      <v-col cols="12" md="6">
+        <v-card class="pa-5 h-100">
+          <div class="section-title">Antigüedad de los tickets sin resolver</div>
+          <p class="text-caption text-secondary-label mb-4">
+            {{ unresolvedTotal }} ticket(s) abiertos, en progreso o pendientes.
+            <template v-if="oldUnresolved">
+              <strong class="text-error">{{ oldUnresolved }} llevan más de una semana.</strong>
+            </template>
+          </p>
+          <BarList :items="byAging" />
+        </v-card>
+      </v-col>
+    </v-row>
+
+    <!-- Picos de trabajo -->
+    <v-row dense class="mt-2">
+      <v-col cols="12">
+        <v-card class="pa-5">
+          <div class="section-title mb-0">¿Cuándo llegan los tickets?</div>
+          <p class="text-caption text-secondary-label mb-4">
+            Tickets creados por día y hora en los últimos 3 meses (hora del centro de México).
+            Sirve para saber en qué horarios hace falta más personal de soporte.
+          </p>
+          <HeatmapGrid :cells="data.activity_heatmap ?? []" />
         </v-card>
       </v-col>
     </v-row>

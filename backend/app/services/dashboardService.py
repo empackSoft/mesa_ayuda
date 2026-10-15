@@ -6,6 +6,7 @@ from sqlalchemy import func
 from models.ticket import Ticket
 from models.user import User
 from models.ticketHistory import TicketHistory
+from models.incidencia import Incidencia
 
 
 def get_status_counts(db: Session):
@@ -223,8 +224,104 @@ def get_ticket_trend(db: Session, days: int = TREND_DAYS):
     ]
 
 
+def _to_local(value):
+    if value.tzinfo is not None:
+        value = value.replace(tzinfo=None)
+    return value + LOCAL_OFFSET
+
+
+def get_category_counts(db: Session):
+    """Tickets por categoría (incidencia): total y cuántos siguen sin cerrar."""
+    rows = (
+        db.query(
+            Incidencia.id,
+            Incidencia.name,
+            Ticket.status,
+            func.count(Ticket.id)
+        )
+        .join(Ticket, Ticket.incidencia_id == Incidencia.id)
+        .group_by(Incidencia.id, Incidencia.name, Ticket.status)
+        .all()
+    )
+
+    result = {}
+
+    for incidencia_id, name, status, count in rows:
+        item = result.setdefault(
+            incidencia_id,
+            {"incidencia_id": incidencia_id, "name": name, "total": 0, "open": 0}
+        )
+        item["total"] += count
+        if status != "closed":
+            item["open"] += count
+
+    return sorted(result.values(), key=lambda i: i["total"], reverse=True)
+
+
+def get_activity_heatmap(db: Session, days: int = TREND_DAYS):
+    """
+    Tickets creados por día de la semana y hora (hora de México), últimos `days` días.
+    Devuelve celdas con valor: [{weekday: 0=lunes..6=domingo, hour: 0..23, count}]
+    """
+    since = datetime.utcnow() - timedelta(days=days)
+
+    rows = (
+        db.query(Ticket.created_at)
+        .filter(Ticket.created_at >= since)
+        .all()
+    )
+
+    cells = {}
+
+    for (created_at,) in rows:
+        local = _to_local(created_at)
+        key = (local.weekday(), local.hour)
+        cells[key] = cells.get(key, 0) + 1
+
+    return [
+        {"weekday": weekday, "hour": hour, "count": count}
+        for (weekday, hour), count in sorted(cells.items())
+    ]
+
+
+# Rangos de antigüedad (en horas) para los tickets que siguen sin resolver
+AGING_BUCKETS = [
+    ("lt_1d", 24),
+    ("1_3d", 72),
+    ("3_7d", 168),
+    ("1_4w", 672),
+    ("gt_4w", None),
+]
+
+
+def get_open_aging(db: Session):
+    """Tickets sin resolver (open, in_progress, pending) agrupados por antigüedad."""
+    rows = (
+        db.query(Ticket.created_at)
+        .filter(Ticket.status.in_(["open", "in_progress", "pending"]))
+        .all()
+    )
+
+    now = datetime.utcnow()
+    counts = {key: 0 for key, _ in AGING_BUCKETS}
+
+    for (created_at,) in rows:
+        if created_at.tzinfo is not None:
+            created_at = created_at.replace(tzinfo=None)
+        hours = (now - created_at).total_seconds() / 3600
+        for key, limit in AGING_BUCKETS:
+            if limit is None or hours < limit:
+                counts[key] += 1
+                break
+
+    return counts
+
+
 def get_dashboard(db: Session):
     return {
+        "category_counts": get_category_counts(db),
+        "activity_heatmap": get_activity_heatmap(db),
+        "open_aging": get_open_aging(db),
         "trend": get_ticket_trend(db),
         "status_counts": get_status_counts(db),
         "priority_counts": get_priority_counts(db),

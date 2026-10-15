@@ -29,3 +29,12 @@ class TicketComment(Base):
 
     ticket = relationship("Ticket", back_populates="comments")
     author = relationship("User")
+
+    # Datos del autor para mostrar en la conversación
+    @property
+    def user_name(self):
+        return self.author.name if self.author else None
+
+    @property
+    def user_role(self):
+        return self.author.role if self.author else None

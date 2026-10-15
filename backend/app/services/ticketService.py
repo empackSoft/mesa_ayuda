@@ -40,6 +40,7 @@ MAX_FILE_SIZE = 10 * 1024 * 1024
 VALID_STATUS = [
     "open",
     "in_progress",
+    "pending",
     "resolved",
     "closed"
 ]
@@ -94,7 +95,8 @@ def build_ticket_response(ticket: Ticket):
 def assign_ticket(
         db: Session,
         ticket_id: int,
-        assigned_to_user_id: int
+        assigned_to_user_id: int,
+        current_user=None
 ):
     ticket = find_ticket_by_id(
         db,
@@ -136,7 +138,7 @@ def assign_ticket(
     create_history(
         db=db,
         ticket_id=ticket.id,
-        user_id=assigned_user.id,
+        user_id=current_user.id if current_user else None,
         action="ASSIGN",
         old_value=str(old_user) if old_user else None,
         new_value=str(assigned_user.id)
@@ -222,6 +224,19 @@ def find_ticket_by_id(
         )
 
     return ticket
+
+
+def ensure_ticket_access(ticket: Ticket, current_user=None):
+    # Un "user" solo puede ver y adjuntar en los tickets que él creó
+    if (
+        current_user is not None
+        and current_user.role == "user"
+        and ticket.created_by_user_id != current_user.id
+    ):
+        raise HTTPException(
+            status_code=403,
+            detail="No tienes acceso a este ticket"
+        )
 
 def create_ticket(
         db: Session,
@@ -348,12 +363,15 @@ def get_tickets(
 
 def get_ticket_by_id(
         db: Session,
-        ticket_id: int
+        ticket_id: int,
+        current_user=None
 ):
     ticket = find_ticket_by_id(
         db,
         ticket_id
     )
+
+    ensure_ticket_access(ticket, current_user)
 
     return build_ticket_response(ticket)
 
@@ -361,7 +379,8 @@ def get_ticket_by_id(
 def update_ticket(
         db: Session,
         ticket_id: int,
-        ticket_data: TicketUpdate
+        ticket_data: TicketUpdate,
+        current_user=None
 ):
     ticket = find_ticket_by_id(
         db,
@@ -423,7 +442,7 @@ def update_ticket(
             create_history(
                 db=db,
                 ticket_id=ticket.id,
-                user_id=ticket.assigned_to_user_id,
+                user_id=current_user.id if current_user else None,
                 action=f"UPDATE_{field.upper()}",
                 old_value=old_value,
                 new_value=new_value
@@ -441,7 +460,8 @@ def update_ticket(
 
 def close_ticket(
         db: Session,
-        ticket_id: int
+        ticket_id: int,
+        current_user=None
 ):
     ticket = find_ticket_by_id(
         db,
@@ -463,7 +483,7 @@ def close_ticket(
     create_history(
         db=db,
         ticket_id=ticket.id,
-        user_id=ticket.assigned_to_user_id,
+        user_id=current_user.id if current_user else None,
         action="CLOSE",
         old_value=old_status,
         new_value="closed"
@@ -512,7 +532,8 @@ def delete_ticket(
 def change_ticket_status(
         db: Session,
         ticket_id: int,
-        status_data: TicketStatusUpdate
+        status_data: TicketStatusUpdate,
+        current_user=None
 ):
     ticket = find_ticket_by_id(
         db,
@@ -556,7 +577,7 @@ def change_ticket_status(
     create_history(
         db=db,
         ticket_id=ticket.id,
-        user_id=ticket.assigned_to_user_id,
+        user_id=current_user.id if current_user else None,
         action="STATUS",
         old_value=old_status,
         new_value=new_status
@@ -594,6 +615,8 @@ def upload_attachment(
         db,
         ticket_id
     )
+
+    ensure_ticket_access(ticket, current_user)
 
     if ticket.status == "closed":
         raise HTTPException(
@@ -657,12 +680,15 @@ def upload_attachment(
 
 def list_attachments(
         db: Session,
-        ticket_id: int
+        ticket_id: int,
+        current_user=None
 ):
     ticket = find_ticket_by_id(
         db,
         ticket_id
     )
+
+    ensure_ticket_access(ticket, current_user)
 
     return (
         db.query(TicketAttachment)
@@ -675,12 +701,15 @@ def list_attachments(
 def get_attachment(
         db: Session,
         ticket_id: int,
-        attachment_id: int
+        attachment_id: int,
+        current_user=None
 ):
     ticket = find_ticket_by_id(
         db,
         ticket_id
     )
+
+    ensure_ticket_access(ticket, current_user)
 
     attachment = (
         db.query(TicketAttachment)

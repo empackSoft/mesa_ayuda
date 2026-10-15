@@ -12,6 +12,8 @@ class TicketCommentResponse(BaseModel):
     id: int
     ticket_id: int
     user_id: Optional[int]
+    user_name: Optional[str] = None
+    user_role: Optional[str] = None
     body: str
     is_internal: bool
     created_at: datetime

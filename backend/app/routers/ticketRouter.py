@@ -103,11 +103,12 @@ def list_tickets(
 def get_ticket(
         ticket_id: int,
         db: Session = Depends(get_db),
-        current_user: User = Depends(require_support_or_admin)
+        current_user: User = Depends(require_user_or_above)
 ):
     return get_ticket_by_id(
         db,
-        ticket_id
+        ticket_id,
+        current_user
     )
 
 @router.put(
@@ -123,7 +124,8 @@ def update_existing_ticket(
     return update_ticket(
         db,
         ticket_id,
-        ticket
+        ticket,
+        current_user
     )
 
 @router.patch(
@@ -137,7 +139,8 @@ def close_existing_ticket(
 ):
     return close_ticket(
         db,
-        ticket_id
+        ticket_id,
+        current_user
     )
 
 
@@ -165,7 +168,8 @@ def assign_existing_ticket(
     return assign_ticket(
         db=db,
         ticket_id=ticket_id,
-        assigned_to_user_id=assign_data.assigned_to_user_id
+        assigned_to_user_id=assign_data.assigned_to_user_id,
+        current_user=current_user
     )
 
 @router.patch(
@@ -181,7 +185,8 @@ def update_ticket_status(
     return change_ticket_status(
         db=db,
         ticket_id=ticket_id,
-        status_data=status
+        status_data=status,
+        current_user=current_user
     )
 
 
@@ -209,7 +214,7 @@ def upload_ticket_attachment(
         ticket_id: int,
         file: UploadFile = File(...),
         db: Session = Depends(get_db),
-        current_user: User = Depends(require_support_or_admin)
+        current_user: User = Depends(require_user_or_above)
 ):
     return upload_attachment(
         db=db,
@@ -226,11 +231,12 @@ def upload_ticket_attachment(
 def list_ticket_attachments(
         ticket_id: int,
         db: Session = Depends(get_db),
-        current_user: User = Depends(require_support_or_admin)
+        current_user: User = Depends(require_user_or_above)
 ):
     return list_attachments(
         db=db,
-        ticket_id=ticket_id
+        ticket_id=ticket_id,
+        current_user=current_user
     )
 
 
@@ -239,12 +245,13 @@ def download_ticket_attachment(
         ticket_id: int,
         attachment_id: int,
         db: Session = Depends(get_db),
-        current_user: User = Depends(require_support_or_admin)
+        current_user: User = Depends(require_user_or_above)
 ):
     attachment = get_attachment(
         db=db,
         ticket_id=ticket_id,
-        attachment_id=attachment_id
+        attachment_id=attachment_id,
+        current_user=current_user
     )
 
     return FileResponse(

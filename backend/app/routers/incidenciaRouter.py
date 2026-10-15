@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
 
 from dependencies.database import get_db
-from dependencies.auth import require_admin
+from dependencies.auth import require_admin, require_user_or_above
 
 from schemas.incidencia import (
     IncidenciaCreate,
@@ -44,7 +44,7 @@ def list_incidencias(
 )
 def list_active_incidencias(
         db: Session = Depends(get_db),
-        current_user: User = Depends(require_admin)
+        current_user: User = Depends(require_user_or_above)
 ):
     return incidenciaService.get_active_incidencias(db)
 
@@ -104,7 +104,7 @@ def update_existing_incidencia(
 def list_subincidencias_by_incidencia(
         incidencia_id: int,
         db: Session = Depends(get_db),
-        current_user: User = Depends(require_admin)
+        current_user: User = Depends(require_user_or_above)
 ):
     return incidenciaService.get_subincidencias_by_incidencia(
         db,

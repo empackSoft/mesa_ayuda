@@ -84,6 +84,44 @@ const unattendedPct = computed(() =>
 )
 const urgent = computed(() => data.value?.priority_counts?.urgent ?? 0)
 
+const kpis = computed(() => [
+  {
+    key: 'active',
+    label: 'Tickets activos',
+    icon: 'ticket',
+    value: active.value,
+    foot: `${createdThisWeek.value} nuevo(s) en 7 días`,
+    footIcon: weekDelta.value > 0 ? 'trending-up' : weekDelta.value < 0 ? 'trending-down' : 'minus',
+    hint: `${weekText.value}. ${total.value} tickets en total.`,
+  },
+  {
+    key: 'open',
+    label: 'Sin atender',
+    icon: 'inbox',
+    value: statusCounts.value.open ?? 0,
+    foot: `${unattendedPct.value}% de los activos`,
+    hint: 'Tickets en estado Abierto: nadie los ha tomado todavía.',
+  },
+  {
+    key: 'time',
+    label: 'Tiempo de resolución',
+    icon: 'clock',
+    value: formatDuration(times.value.average_seconds_general),
+    foot: `Promedio de ${times.value.total_resolved ?? 0} resuelto(s)`,
+    hint: 'Desde que se crea el ticket hasta que se marca como Resuelto por primera vez.',
+  },
+  {
+    key: 'urgent',
+    label: 'Prioridad urgente',
+    icon: 'triangle-alert',
+    value: urgent.value,
+    foot: urgent.value ? 'Atender ya' : 'Al día',
+    footIcon: urgent.value ? 'triangle-alert' : 'circle-check',
+    tone: urgent.value ? 'error' : 'success',
+    hint: `Urgentes sin cerrar. Además hay ${data.value?.priority_counts?.high ?? 0} de prioridad alta.`,
+  },
+])
+
 const timeByPriority = computed(() =>
   [...PRIORITIES]
     .reverse()
@@ -124,66 +162,24 @@ const technicians = computed(() => {
   <v-progress-linear v-if="loading && !data" indeterminate color="primary" />
 
   <template v-if="data">
-    <!-- Indicadores principales: una sola línea desde tablet -->
-    <v-row dense>
-      <v-col cols="6" md="3">
-        <v-card class="kpi">
-          <div class="kpi-head">
-            <span class="kpi-label">Tickets activos</span>
-            <v-chip size="x-small" variant="outlined" class="kpi-badge">
-              <v-icon :icon="weekDelta > 0 ? 'trending-up' : weekDelta < 0 ? 'trending-down' : 'minus'" start size="12" />
-              {{ createdThisWeek }} en 7 días
-            </v-chip>
-          </div>
-          <div class="kpi-value">{{ active }}</div>
-          <div class="kpi-foot">
-            <strong>{{ weekText }}</strong>
-            <span>de {{ total }} tickets en total</span>
-          </div>
-        </v-card>
-      </v-col>
-      <v-col cols="6" md="3">
-        <v-card class="kpi">
-          <div class="kpi-head">
-            <span class="kpi-label">Sin atender</span>
-            <v-chip size="x-small" variant="outlined" class="kpi-badge">{{ unattendedPct }}% de activos</v-chip>
-          </div>
-          <div class="kpi-value">{{ statusCounts.open ?? 0 }}</div>
-          <div class="kpi-foot">
-            <strong>En estado Abierto</strong>
-            <span>Nadie los ha tomado todavía</span>
-          </div>
-        </v-card>
-      </v-col>
-      <v-col cols="6" md="3">
-        <v-card class="kpi">
-          <div class="kpi-head">
-            <span class="kpi-label">Tiempo promedio de resolución</span>
-          </div>
-          <div class="kpi-value">{{ formatDuration(times.average_seconds_general) }}</div>
-          <div class="kpi-foot">
-            <strong>{{ times.total_resolved ?? 0 }} ticket(s) resuelto(s)</strong>
-            <span>De que se crea a que se resuelve</span>
-          </div>
-        </v-card>
-      </v-col>
-      <v-col cols="6" md="3">
-        <v-card class="kpi">
-          <div class="kpi-head">
-            <span class="kpi-label">Prioridad urgente</span>
-            <v-chip size="x-small" :color="urgent ? 'error' : 'success'" class="kpi-badge">
-              <v-icon :icon="urgent ? 'triangle-alert' : 'circle-check'" start size="12" />
-              {{ urgent ? 'Atender ya' : 'Al día' }}
-            </v-chip>
-          </div>
-          <div class="kpi-value">{{ urgent }}</div>
-          <div class="kpi-foot">
-            <strong>Urgentes sin cerrar</strong>
-            <span>{{ data.priority_counts?.high ?? 0 }} más de prioridad alta</span>
-          </div>
-        </v-card>
-      </v-col>
-    </v-row>
+    <!-- Indicadores principales: siempre los 4 en una línea (2x2 solo en celular) -->
+    <div class="kpis">
+      <v-card v-for="k in kpis" :key="k.key" class="kpi">
+        <div :title="k.hint">
+        <div class="kpi-head">
+          <span class="kpi-label">{{ k.label }}</span>
+          <span class="kpi-icon" :class="k.tone && `kpi-icon--${k.tone}`">
+            <v-icon :icon="k.icon" size="16" />
+          </span>
+        </div>
+        <div class="kpi-value">{{ k.value }}</div>
+        <div class="kpi-foot" :class="k.tone && `text-${k.tone}`">
+          <v-icon v-if="k.footIcon" :icon="k.footIcon" size="14" />
+          <span>{{ k.foot }}</span>
+        </div>
+        </div>
+      </v-card>
+    </div>
 
     <!-- Tendencia -->
     <v-row dense class="mt-2">
@@ -280,9 +276,18 @@ const technicians = computed(() => {
 </template>
 
 <style scoped>
+.kpis {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+@media (max-width: 599px) {
+  .kpis {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
 .kpi {
-  height: 100%;
-  padding: 16px 18px;
+  padding: 12px 14px;
   background: linear-gradient(180deg, rgba(11, 40, 121, 0.035), #fff 70%);
 }
 .kpi-head {
@@ -292,35 +297,54 @@ const technicians = computed(() => {
   gap: 8px;
 }
 .kpi-label {
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 500;
   color: var(--app-text-secondary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.kpi-badge {
+.kpi-icon {
   flex-shrink: 0;
-  font-weight: 500;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: rgba(11, 40, 121, 0.07);
+  color: rgb(var(--v-theme-primary));
+}
+.kpi-icon--error {
+  background: rgba(191, 8, 17, 0.08);
+  color: rgb(var(--v-theme-error));
+}
+.kpi-icon--success {
+  background: rgba(30, 123, 69, 0.09);
+  color: rgb(var(--v-theme-success));
 }
 .kpi-value {
-  font-size: 28px;
+  font-size: clamp(28px, 3vw, 36px);
   font-weight: 600;
   letter-spacing: -0.03em;
-  line-height: 1.2;
-  margin: 6px 0 10px;
+  line-height: 1.15;
+  margin: 4px 0 4px;
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .kpi-foot {
   display: flex;
-  flex-direction: column;
-  gap: 2px;
-  font-size: 12px;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
   color: var(--app-text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
 }
-.kpi-foot strong {
-  font-weight: 500;
-  color: var(--app-text);
+.kpi-foot span {
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .legend {
   display: flex;

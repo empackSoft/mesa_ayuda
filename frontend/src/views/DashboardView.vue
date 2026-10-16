@@ -5,7 +5,7 @@ import BarList from '../components/BarList.vue'
 import TrendAreaChart from '../components/TrendAreaChart.vue'
 import HeatmapGrid from '../components/HeatmapGrid.vue'
 import { formatDuration } from '../utils/format'
-import { PRIORITY_LABELS, STATUS_LABELS } from '../utils/labels'
+import { LOCATION_TYPE_LABELS, LOCATION_TYPE_PLURALS, PRIORITY_LABELS, STATUS_LABELS } from '../utils/labels'
 
 const data = ref(null)
 const loading = ref(false)
@@ -122,6 +122,58 @@ const byAging = computed(() =>
 )
 const unresolvedTotal = computed(() => byAging.value.reduce((a, i) => a + i.value, 0))
 const oldUnresolved = computed(() => (data.value?.open_aging?.['1_4w'] ?? 0) + (data.value?.open_aging?.gt_4w ?? 0))
+
+// --- Tickets por ubicación (filtro por tipo; las 10 con más tickets o todas) ---
+const LOCATION_TYPES = Object.keys(LOCATION_TYPE_LABELS)
+const TOP_LOCATIONS = 10
+const locationType = ref('all')
+const showAllLocations = ref(false)
+const locationCounts = computed(() =>
+  (data.value?.location_counts ?? []).filter((l) => locationType.value === 'all' || l.type === locationType.value),
+)
+const byLocation = computed(() =>
+  (showAllLocations.value ? locationCounts.value : locationCounts.value.slice(0, TOP_LOCATIONS)).map((l) => ({
+    key: l.location_id ?? 'none',
+    label: l.name ?? 'Sin ubicación',
+    value: l.total,
+    text: `${l.total} · ${l.open} sin cerrar`,
+  })),
+)
+const locationTypeTotals = computed(() => {
+  const totals = { all: 0 }
+  for (const l of data.value?.location_counts ?? []) {
+    totals.all += l.total
+    if (l.type) totals[l.type] = (totals[l.type] ?? 0) + l.total
+  }
+  return totals
+})
+
+// --- Distribución de tiempos de resolución ---
+const RESOLUTION_BUCKETS = {
+  lt_1h: 'Menos de 1 hora',
+  '1_4h': '1 a 4 horas',
+  '4_24h': '4 a 24 horas',
+  '1_3d': '1 a 3 días',
+  '3_7d': '3 a 7 días',
+  gt_1w: 'Más de 1 semana',
+}
+const RESOLUTION_PERIODS = [
+  { value: 'year', label: 'Último año' },
+  { value: 'all', label: 'Todo' },
+]
+const resolutionPeriod = ref('year')
+const resolutionCounts = computed(() => data.value?.resolution_distribution?.[resolutionPeriod.value] ?? {})
+const resolvedInPeriod = computed(() => Object.values(resolutionCounts.value).reduce((a, b) => a + b, 0))
+const pct = (n) => (resolvedInPeriod.value ? Math.round((n / resolvedInPeriod.value) * 100) : 0)
+const byResolution = computed(() =>
+  Object.entries(RESOLUTION_BUCKETS).map(([key, label]) => {
+    const value = resolutionCounts.value[key] ?? 0
+    return { key, label, value, text: `${value} · ${pct(value)}%` }
+  }),
+)
+const resolvedSameDayPct = computed(() =>
+  pct(['lt_1h', '1_4h', '4_24h'].reduce((a, k) => a + (resolutionCounts.value[k] ?? 0), 0)),
+)
 
 const kpis = computed(() => [
   {
@@ -273,6 +325,72 @@ const technicians = computed(() => {
             </template>
           </p>
           <BarList :items="byAging" />
+        </v-card>
+      </v-col>
+    </v-row>
+
+    <!-- Ubicaciones y tiempos de resolución -->
+    <v-row dense class="mt-2">
+      <v-col cols="12" md="6">
+        <v-card class="pa-5 h-100">
+          <div class="section-title mb-1">Tickets por ubicación</div>
+          <p class="text-caption text-secondary-label mb-3">
+            Desde dónde se levantan los tickets. Total y cuántos siguen sin cerrar.
+          </p>
+          <div class="d-flex flex-wrap ga-2 mb-4">
+            <v-chip
+              :variant="locationType === 'all' ? 'flat' : 'tonal'"
+              :color="locationType === 'all' ? 'primary' : undefined"
+              @click="locationType = 'all'"
+            >
+              Todas · {{ locationTypeTotals.all }}
+            </v-chip>
+            <v-chip
+              v-for="t in LOCATION_TYPES"
+              :key="t"
+              :variant="locationType === t ? 'flat' : 'tonal'"
+              :color="locationType === t ? 'primary' : undefined"
+              @click="locationType = t"
+            >
+              {{ LOCATION_TYPE_PLURALS[t] }} · {{ locationTypeTotals[t] ?? 0 }}
+            </v-chip>
+          </div>
+          <BarList :items="byLocation" empty-text="No hay tickets de este tipo de ubicación." />
+          <v-btn
+            v-if="locationCounts.length > TOP_LOCATIONS"
+            variant="text"
+            size="small"
+            class="mt-3 px-2"
+            :append-icon="showAllLocations ? 'chevron-up' : 'chevron-down'"
+            @click="showAllLocations = !showAllLocations"
+          >
+            {{ showAllLocations ? `Ver solo las ${TOP_LOCATIONS} principales` : `Ver todas (${locationCounts.length})` }}
+          </v-btn>
+        </v-card>
+      </v-col>
+      <v-col cols="12" md="6">
+        <v-card class="pa-5 h-100">
+          <div class="d-flex flex-wrap align-start ga-3 mb-1">
+            <div class="section-title mb-0">¿Cuánto tardamos en resolver?</div>
+            <v-spacer />
+            <v-btn-toggle
+              v-model="resolutionPeriod"
+              mandatory
+              density="compact"
+              variant="outlined"
+              divided
+              rounded="lg"
+              class="range-toggle"
+            >
+              <v-btn v-for="p in RESOLUTION_PERIODS" :key="p.value" :value="p.value" size="small">{{ p.label }}</v-btn>
+            </v-btn-toggle>
+          </div>
+          <p class="text-caption text-secondary-label mb-4">
+            {{ resolvedInPeriod }} ticket(s) resueltos<template v-if="resolutionPeriod === 'year'"> de los creados en el último año</template>.
+            <template v-if="resolvedInPeriod"><strong>{{ resolvedSameDayPct }}%</strong> se resolvió en menos de un día.</template>
+            El promedio puede engañar; aquí se ve si hay casos que tardan mucho.
+          </p>
+          <BarList :items="byResolution" empty-text="Aún no hay tickets resueltos." />
         </v-card>
       </v-col>
     </v-row>

@@ -7,6 +7,7 @@ from models.ticket import Ticket
 from models.user import User
 from models.ticketHistory import TicketHistory
 from models.incidencia import Incidencia
+from models.location import Location
 
 
 def get_status_counts(db: Session):
@@ -317,8 +318,101 @@ def get_open_aging(db: Session):
     return counts
 
 
+def get_location_counts(db: Session):
+    """Tickets por ubicación: total y sin cerrar. Los que no tienen ubicación van con location_id None."""
+    rows = (
+        db.query(
+            Ticket.location_id,
+            Location.name,
+            Location.type,
+            Ticket.status,
+            func.count(Ticket.id)
+        )
+        .outerjoin(Location, Location.id == Ticket.location_id)
+        .group_by(Ticket.location_id, Location.name, Location.type, Ticket.status)
+        .all()
+    )
+
+    result = {}
+
+    for location_id, name, location_type, status, count in rows:
+        item = result.setdefault(
+            location_id,
+            {"location_id": location_id, "name": name, "type": location_type, "total": 0, "open": 0}
+        )
+        item["total"] += count
+        if status != "closed":
+            item["open"] += count
+
+    return sorted(result.values(), key=lambda i: i["total"], reverse=True)
+
+
+# Rangos de tiempo de resolución (límite superior en segundos; None = sin límite).
+# Las claves son crudas; el front pone las etiquetas.
+RESOLUTION_BUCKETS = [
+    ("lt_1h", 3600),
+    ("1_4h", 4 * 3600),
+    ("4_24h", 24 * 3600),
+    ("1_3d", 3 * 86400),
+    ("3_7d", 7 * 86400),
+    ("gt_1w", None),
+]
+DISTRIBUTION_DAYS = 365
+
+
+def get_resolution_distribution(db: Session, days: int = DISTRIBUTION_DAYS):
+    """
+    Cuántos tickets se resolvieron en cada rango de tiempo (desde que se crearon hasta su
+    primer paso a 'resolved'). Dos periodos: tickets creados en el último año y todo el historial.
+    """
+    since = datetime.utcnow() - timedelta(days=days)
+
+    first_resolved = (
+        db.query(
+            TicketHistory.ticket_id,
+            func.min(TicketHistory.created_at).label("resolved_at")
+        )
+        .filter(
+            TicketHistory.action == "STATUS",
+            TicketHistory.new_value == "resolved"
+        )
+        .group_by(TicketHistory.ticket_id)
+        .subquery()
+    )
+
+    rows = (
+        db.query(Ticket.created_at, first_resolved.c.resolved_at)
+        .join(first_resolved, first_resolved.c.ticket_id == Ticket.id)
+        .all()
+    )
+
+    periods = {
+        "year": {key: 0 for key, _ in RESOLUTION_BUCKETS},
+        "all": {key: 0 for key, _ in RESOLUTION_BUCKETS},
+    }
+
+    for created_at, resolved_at in rows:
+        if created_at.tzinfo is not None:
+            created_at = created_at.replace(tzinfo=None)
+        if resolved_at.tzinfo is not None:
+            resolved_at = resolved_at.replace(tzinfo=None)
+
+        seconds = (resolved_at - created_at).total_seconds()
+        if seconds < 0:
+            continue
+
+        bucket = next(key for key, limit in RESOLUTION_BUCKETS if limit is None or seconds < limit)
+        periods["all"][bucket] += 1
+        if created_at >= since:
+            periods["year"][bucket] += 1
+
+    return periods
+
+
 def get_dashboard(db: Session):
     return {
+        "location_counts": get_location_counts(db),
+        "resolution_distribution": get_resolution_distribution(db),
         "category_counts": get_category_counts(db),
         "activity_heatmap": get_activity_heatmap(db),
         "open_aging": get_open_aging(db),

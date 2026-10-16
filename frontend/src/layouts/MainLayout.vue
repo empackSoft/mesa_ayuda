@@ -1,16 +1,40 @@
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useDisplay } from 'vuetify'
+import AppFooter from '../components/AppFooter.vue'
 import BrandLogo from '../components/BrandLogo.vue'
+import SeasonalMascot from '../components/SeasonalMascot.vue'
 import { useAuthStore } from '../stores/auth'
 import { ROLE_LABELS, label } from '../utils/labels'
+import { SEASONS, currentSeason, seasonCaption } from '../utils/seasons'
 
 const auth = useAuthStore()
 const router = useRouter()
 const { mobile } = useDisplay()
 
 const drawer = ref(!mobile.value)
+// En escritorio el botón de menú contrae el sidebar a solo iconos (la mascota sigue visible);
+// en celular lo abre y cierra encima del contenido.
+const rail = ref(false)
+const isRail = computed(() => rail.value && !mobile.value)
+
+function toggleMenu() {
+  if (mobile.value) drawer.value = !drawer.value
+  else rail.value = !rail.value
+}
+
+watch(mobile, (isMobile) => {
+  drawer.value = !isMobile
+  rail.value = false
+})
+
+// La mascota se anima cada vez que el menú se abre o se cierra
+const season = currentSeason()
+const caption = seasonCaption(season)
+const captionColor = SEASONS[season]?.color
+const mascotPlays = ref(0)
+watch([drawer, isRail], () => mascotPlays.value++)
 
 const MENU = [
   { title: 'Inicio', icon: 'house', to: { name: 'home' } },
@@ -38,9 +62,19 @@ function logout() {
 </script>
 
 <template>
-  <v-navigation-drawer v-model="drawer" :temporary="mobile" class="app-glass sidebar" width="248">
-    <div class="px-5 pt-6 pb-5">
-      <BrandLogo />
+  <v-navigation-drawer
+    v-model="drawer"
+    :temporary="mobile"
+    :rail="isRail"
+    rail-width="76"
+    class="app-glass sidebar"
+    width="248"
+  >
+    <div class="sidebar-mascot" :class="{ 'sidebar-mascot--rail': isRail }">
+      <SeasonalMascot :season="season" :size="isRail ? 46 : 88" :play-key="mascotPlays" />
+      <div v-if="caption && !isRail" class="season-caption" :style="{ color: captionColor }">
+        {{ caption }}
+      </div>
     </div>
 
     <v-list nav density="compact" class="px-3">
@@ -49,7 +83,8 @@ function logout() {
         :key="item.title"
         :to="item.to"
         :prepend-icon="item.icon"
-        :title="item.title"
+        :title="isRail ? undefined : item.title"
+        v-tooltip:end="{ text: item.title, disabled: !isRail }"
         :exact="item.to.name === 'home'"
         rounded="lg"
         color="primary"
@@ -59,8 +94,13 @@ function logout() {
   </v-navigation-drawer>
 
   <v-app-bar flat height="60" class="app-glass topbar">
-    <v-app-bar-nav-icon icon="menu" @click="drawer = !drawer" />
-    <v-app-bar-title class="topbar-title">{{ $route.meta.title ?? 'Inicio' }}</v-app-bar-title>
+    <v-app-bar-nav-icon icon="menu" @click="toggleMenu" />
+    <v-app-bar-title class="topbar-title d-none d-sm-flex">{{ $route.meta.title ?? 'Inicio' }}</v-app-bar-title>
+    <v-spacer class="d-sm-none" />
+
+    <RouterLink :to="{ name: 'home' }" class="topbar-logo" aria-label="Inicio">
+      <BrandLogo :size="46" :show-text="false" />
+    </RouterLink>
 
     <v-menu location="bottom end">
       <template #activator="{ props }">
@@ -88,8 +128,12 @@ function logout() {
   </v-app-bar>
 
   <v-main>
-    <div class="page">
-      <RouterView />
+    <!-- El pie queda al fondo aunque la vista tenga poco contenido -->
+    <div class="main-column">
+      <div class="page">
+        <RouterView />
+      </div>
+      <AppFooter />
     </div>
   </v-main>
 </template>
@@ -100,6 +144,31 @@ function logout() {
 }
 .topbar {
   border-bottom: 1px solid var(--app-hairline) !important;
+}
+.sidebar-mascot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 14px 16px 12px;
+  transition: padding 0.25s ease;
+}
+.sidebar-mascot--rail {
+  padding: 12px 0 8px;
+}
+.season-caption {
+  margin-top: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  text-align: center;
+  line-height: 1.25;
+}
+.topbar-logo {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  display: block;
 }
 .topbar-title {
   font-weight: 600;
@@ -120,7 +189,14 @@ function logout() {
   font-weight: 600;
   letter-spacing: 0;
 }
+.main-column {
+  display: flex;
+  flex-direction: column;
+  min-height: calc(100dvh - 60px);
+}
 .page {
+  flex: 1;
+  width: 100%;
   max-width: 1280px;
   margin: 0 auto;
   padding: 32px 24px 48px;

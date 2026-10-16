@@ -1,4 +1,5 @@
 <script setup>
+import AppFooter from '../components/AppFooter.vue'
 import MascotPeek from '../components/MascotPeek.vue'
 </script>
 
@@ -17,5 +18,6 @@ import MascotPeek from '../components/MascotPeek.vue'
         <v-btn color="primary" :to="{ name: 'home' }">Ir al inicio</v-btn>
       </template>
     </v-empty-state>
+    <AppFooter />
   </v-main>
 </template>

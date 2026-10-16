@@ -2,6 +2,7 @@
 import { ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { errorMessage } from '../api/http'
+import AppFooter from '../components/AppFooter.vue'
 import BrandLogo from '../components/BrandLogo.vue'
 import MascotPeek from '../components/MascotPeek.vue'
 import { useAuthStore } from '../stores/auth'
@@ -98,9 +99,7 @@ async function submit() {
         </v-form>
       </v-card>
 
-      <p class="text-center text-caption text-secondary-label mt-8">
-        © {{ new Date().getFullYear() }} EmPack · Sistemas
-      </p>
+      <AppFooter class="mt-8" />
     </div>
   </v-main>
 </template>

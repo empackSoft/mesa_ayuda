@@ -1,12 +1,19 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import http, { errorMessage } from '../api/http'
+import { LOCATION_TYPE_ICONS, LOCATION_TYPE_LABELS, LOCATION_TYPE_PLURALS } from '../utils/labels'
 
-// Catálogo de incidencias (categorías) y subincidencias (subcategorías). Solo admin.
+// Catálogo de incidencias (categorías), subincidencias (subcategorías) y ubicaciones. Solo admin.
 // No se borra nada: se desactiva, para no romper tickets que ya las usan.
 
 const incidencias = ref([])
 const subincidencias = ref([])
+const locations = ref([])
+const newLocation = ref('')
+const newLocationType = ref('branch')
+const locationSearch = ref('')
+const locationTypeFilter = ref('all')
+const LOCATION_TYPES = Object.keys(LOCATION_TYPE_LABELS)
 const selectedId = ref(null)
 const loading = ref(false)
 const error = ref('')
@@ -27,12 +34,14 @@ async function load() {
   loading.value = true
   error.value = ''
   try {
-    const [inc, subs] = await Promise.all([
+    const [inc, subs, locationList] = await Promise.all([
       http.get('/incidencias/').then((r) => r.data),
       http.get('/incidencias/subincidencias/all').then((r) => r.data),
+      http.get('/locations/').then((r) => r.data),
     ])
     incidencias.value = inc
     subincidencias.value = subs
+    locations.value = locationList
     if (!incidencias.value.some((i) => i.id === selectedId.value)) {
       selectedId.value = incidencias.value[0]?.id ?? null
     }
@@ -98,12 +107,75 @@ async function createSub() {
   }
 }
 
+async function createLocation() {
+  const name = newLocation.value.trim()
+  if (name.length < 2) return
+  savingNew.value = 'location'
+  try {
+    const { data } = await http.post('/locations/', { name, type: newLocationType.value })
+    locations.value.push(data)
+    locations.value.sort((a, b) => a.name.localeCompare(b.name, 'es'))
+    newLocation.value = ''
+    notify(`${LOCATION_TYPE_LABELS[data.type]} "${data.name}" creada`)
+  } catch (e) {
+    notify(errorMessage(e), 'error')
+  } finally {
+    savingNew.value = ''
+  }
+}
+
+const locationTypeCount = computed(() => {
+  const counts = { all: locations.value.length }
+  for (const l of locations.value) counts[l.type] = (counts[l.type] ?? 0) + 1
+  return counts
+})
+
+const filteredLocations = computed(() => {
+  const q = locationSearch.value.trim().toLowerCase()
+  return locations.value.filter(
+    (l) =>
+      (locationTypeFilter.value === 'all' || l.type === locationTypeFilter.value) &&
+      (!q || l.name.toLowerCase().includes(q)),
+  )
+})
+
+// Agrupadas por tipo (sucursales, CEDIS, corporativos) en el orden de LOCATION_TYPES
+const locationGroups = computed(() =>
+  LOCATION_TYPES.map((type) => ({
+    type,
+    items: filteredLocations.value.filter((l) => l.type === type),
+  })).filter((g) => g.items.length),
+)
+
+function setLocationFilter(type) {
+  locationTypeFilter.value = type
+  if (type !== 'all') newLocationType.value = type
+}
+
+async function changeLocationType(item, type) {
+  if (type === item.type) return
+  try {
+    const { data } = await http.put(`/locations/${item.id}`, { type })
+    replaceItem('location', data)
+    notify(`"${data.name}" ahora es ${LOCATION_TYPE_LABELS[data.type]}`)
+  } catch (e) {
+    notify(errorMessage(e), 'error')
+  }
+}
+
+const KIND_URL = {
+  incidencia: (id) => `/incidencias/${id}`,
+  sub: (id) => `/incidencias/subincidencias/${id}`,
+  location: (id) => `/locations/${id}`,
+}
+const KIND_TITLE = { incidencia: 'categoría', sub: 'subcategoría', location: 'ubicación' }
+
 function urlFor(kind, item) {
-  return kind === 'incidencia' ? `/incidencias/${item.id}` : `/incidencias/subincidencias/${item.id}`
+  return KIND_URL[kind](item.id)
 }
 
 function replaceItem(kind, updated) {
-  const list = kind === 'incidencia' ? incidencias : subincidencias
+  const list = { incidencia: incidencias, sub: subincidencias, location: locations }[kind]
   const i = list.value.findIndex((x) => x.id === updated.id)
   if (i >= 0) list.value[i] = updated
 }
@@ -287,10 +359,118 @@ async function saveEdit() {
     </v-col>
   </v-row>
 
+  <!-- Ubicaciones: sucursales, CEDIS y corporativos -->
+  <v-card class="mt-6">
+    <div class="d-flex flex-wrap align-center ga-3 pa-5 pb-3">
+      <div>
+        <div class="font-weight-medium">Ubicaciones</div>
+        <div class="text-caption text-secondary-label">
+          Se asignan a cada usuario; sus tickets se registran en automático con esa ubicación.
+        </div>
+      </div>
+      <v-spacer />
+      <v-text-field
+        v-model="locationSearch"
+        prepend-inner-icon="search"
+        placeholder="Buscar"
+        hide-details
+        density="compact"
+        clearable
+        class="location-search"
+      />
+    </div>
+
+    <div class="d-flex flex-wrap ga-2 px-5 pb-3">
+      <v-chip
+        :variant="locationTypeFilter === 'all' ? 'flat' : 'tonal'"
+        :color="locationTypeFilter === 'all' ? 'primary' : undefined"
+        @click="setLocationFilter('all')"
+      >
+        Todas · {{ locationTypeCount.all }}
+      </v-chip>
+      <v-chip
+        v-for="type in LOCATION_TYPES"
+        :key="type"
+        :prepend-icon="LOCATION_TYPE_ICONS[type]"
+        :variant="locationTypeFilter === type ? 'flat' : 'tonal'"
+        :color="locationTypeFilter === type ? 'primary' : undefined"
+        @click="setLocationFilter(type)"
+      >
+        {{ LOCATION_TYPE_PLURALS[type] }} · {{ locationTypeCount[type] ?? 0 }}
+      </v-chip>
+    </div>
+
+    <form class="d-flex ga-2 px-5 pb-3" @submit.prevent="createLocation">
+      <v-select
+        v-model="newLocationType"
+        :items="LOCATION_TYPES.map((t) => ({ value: t, title: LOCATION_TYPE_LABELS[t] }))"
+        hide-details
+        density="compact"
+        class="location-type-select"
+      />
+      <v-text-field v-model="newLocation" placeholder="Nueva ubicación" hide-details density="compact" maxlength="150" />
+      <v-btn
+        type="submit"
+        color="primary"
+        icon="plus"
+        :loading="savingNew === 'location'"
+        :disabled="newLocation.trim().length < 2"
+        title="Agregar ubicación"
+      />
+    </form>
+    <v-divider />
+
+    <div class="pa-2">
+      <section v-for="group in locationGroups" :key="group.type" class="mb-2">
+        <div class="location-group-title">
+          {{ LOCATION_TYPE_PLURALS[group.type] }} · {{ group.items.length }}
+        </div>
+        <div class="location-grid">
+          <div v-for="b in group.items" :key="b.id" class="location-item">
+            <v-icon :icon="LOCATION_TYPE_ICONS[b.type]" size="16" class="text-secondary-label" />
+            <span class="location-name" :class="{ 'text-secondary-label': !b.is_active }">
+              {{ b.name }}<span v-if="!b.is_active" class="text-caption"> · inactiva</span>
+            </span>
+            <v-menu location="bottom end">
+              <template #activator="{ props }">
+                <v-btn v-bind="props" icon="ellipsis" variant="text" size="x-small" title="Cambiar tipo" />
+              </template>
+              <v-list density="compact" min-width="180">
+                <v-list-subheader>Tipo de ubicación</v-list-subheader>
+                <v-list-item
+                  v-for="type in LOCATION_TYPES"
+                  :key="type"
+                  :prepend-icon="LOCATION_TYPE_ICONS[type]"
+                  :title="LOCATION_TYPE_LABELS[type]"
+                  :active="b.type === type"
+                  color="primary"
+                  @click="changeLocationType(b, type)"
+                />
+              </v-list>
+            </v-menu>
+            <v-btn icon="pencil" variant="text" size="x-small" title="Renombrar" @click="startEdit('location', b)" />
+            <v-switch
+              :model-value="b.is_active"
+              color="primary"
+              hide-details
+              inset
+              density="compact"
+              :title="b.is_active ? 'Desactivar' : 'Activar'"
+              @update:model-value="toggleActive('location', b)"
+            />
+          </div>
+        </div>
+      </section>
+      <p v-if="!filteredLocations.length && !loading" class="text-body-2 text-secondary-label pa-3">
+        {{ locations.length ? 'Ninguna ubicación coincide.' : 'Aún no hay ubicaciones.' }}
+      </p>
+    </div>
+  </v-card>
+
   <v-dialog :model-value="!!editing" max-width="420" @update:model-value="editing = null">
     <v-card v-if="editing" class="pa-2">
       <v-card-title class="pt-4 px-5 text-h6">
-        Renombrar {{ editing.kind === 'incidencia' ? 'categoría' : 'subcategoría' }}
+        Renombrar {{ KIND_TITLE[editing.kind] }}
       </v-card-title>
       <v-card-text class="px-5">
         <form @submit.prevent="saveEdit">
@@ -316,3 +496,41 @@ async function saveEdit() {
     {{ notice.text }}
   </v-snackbar>
 </template>
+
+<style scoped>
+.location-search {
+  max-width: 240px;
+}
+.location-type-select {
+  flex: 0 0 160px;
+}
+.location-group-title {
+  padding: 10px 12px 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--app-text-secondary);
+}
+.location-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 0 8px;
+}
+.location-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 8px 2px 12px;
+  border-radius: 10px;
+}
+.location-item:hover {
+  background: rgba(0, 0, 0, 0.03);
+}
+.location-name {
+  flex: 1;
+  min-width: 0;
+  font-size: 14px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+</style>

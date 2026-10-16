@@ -1,21 +1,41 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import http, { errorMessage } from '../api/http'
+import { locationsApi } from '../api/tickets'
 import { useAuthStore } from '../stores/auth'
 import { formatDate, initials } from '../utils/format'
-import { ROLE_LABELS, label } from '../utils/labels'
+import { LOCATION_TYPE_LABELS, ROLE_LABELS, label } from '../utils/labels'
 
 // Administración de usuarios. Solo admin. No se borran: se desactivan.
 
 const auth = useAuthStore()
 
 const users = ref([])
+const locations = ref([])
+const locationName = computed(() => Object.fromEntries(locations.value.map((b) => [b.id, b.name])))
+// Ordenadas por tipo (sucursales, CEDIS, corporativos) y nombre, con el tipo de subtítulo
+const LOCATION_TYPE_ORDER = Object.keys(LOCATION_TYPE_LABELS)
+const toLocationItem = (b) => ({ value: b.id, title: b.name, subtitle: label(LOCATION_TYPE_LABELS, b.type) })
+const sortedLocations = computed(() =>
+  [...locations.value].sort(
+    (a, b) =>
+      LOCATION_TYPE_ORDER.indexOf(a.type) - LOCATION_TYPE_ORDER.indexOf(b.type) ||
+      a.name.localeCompare(b.name, 'es'),
+  ),
+)
+// En el formulario: ubicaciones activas, más la actual del usuario aunque esté inactiva
+const locationItems = computed(() =>
+  sortedLocations.value.filter((b) => b.is_active || b.id === fields.value.location_id).map(toLocationItem),
+)
+// Los tickets toman la ubicación de quien los levanta: para un "user" es obligatoria
+const locationRules = [(v) => fields.value.role !== 'user' || !!v || 'Obligatoria: sus tickets se registran con esta ubicación']
 const loading = ref(false)
 const error = ref('')
 const notice = ref({ show: false, text: '', color: 'success' })
 
 const search = ref('')
 const roleFilter = ref(null)
+const locationFilter = ref(null)
 const showInactive = ref(false)
 
 const dialog = ref(false)
@@ -45,8 +65,9 @@ async function load() {
   loading.value = true
   error.value = ''
   try {
-    const { data } = await http.get('/users/')
+    const [{ data }, locationList] = await Promise.all([http.get('/users/'), locationsApi.list()])
     users.value = data
+    locations.value = locationList
   } catch (e) {
     error.value = errorMessage(e, 'No se pudieron cargar los usuarios')
   } finally {
@@ -61,6 +82,7 @@ const filtered = computed(() => {
   return users.value.filter((u) => {
     if (!showInactive.value && !u.is_active) return false
     if (roleFilter.value && u.role !== roleFilter.value) return false
+    if (locationFilter.value && u.location_id !== locationFilter.value) return false
     return !q || u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q)
   })
 })
@@ -69,6 +91,7 @@ const inactiveCount = computed(() => users.value.filter((u) => !u.is_active).len
 
 const headers = [
   { title: 'Nombre', key: 'name' },
+  { title: 'Ubicación', key: 'location_id', width: 200 },
   { title: 'Rol', key: 'role', width: 150 },
   { title: 'Estado', key: 'is_active', width: 120 },
   { title: 'Alta', key: 'created_at', width: 140 },
@@ -81,7 +104,7 @@ function isSelf(u) {
 
 function openCreate() {
   editing.value = null
-  fields.value = { name: '', email: '', role: 'user', password: '', is_active: true }
+  fields.value = { name: '', email: '', role: 'user', location_id: null, password: '', is_active: true }
   formError.value = ''
   showPassword.value = false
   dialog.value = true
@@ -89,7 +112,7 @@ function openCreate() {
 
 function openEdit(u) {
   editing.value = u
-  fields.value = { name: u.name, email: u.email, role: u.role, password: '', is_active: u.is_active }
+  fields.value = { name: u.name, email: u.email, role: u.role, location_id: u.location_id, password: '', is_active: u.is_active }
   formError.value = ''
   showPassword.value = false
   dialog.value = true
@@ -109,6 +132,7 @@ async function save() {
       if (f.name.trim() !== editing.value.name) payload.name = f.name.trim()
       if (f.email.trim() !== editing.value.email) payload.email = f.email.trim()
       if (f.role !== editing.value.role) payload.role = f.role
+      if (f.location_id !== editing.value.location_id) payload.location_id = f.location_id
       if (f.is_active !== editing.value.is_active) payload.is_active = f.is_active
       if (f.password) payload.password = f.password
       if (Object.keys(payload).length) {
@@ -121,6 +145,7 @@ async function save() {
         name: f.name.trim(),
         email: f.email.trim(),
         role: f.role,
+        location_id: f.location_id,
         password: f.password,
       })
       users.value.unshift(data)
@@ -166,6 +191,15 @@ async function save() {
         clearable
         class="filter-role"
       />
+      <v-autocomplete
+        v-model="locationFilter"
+        :items="sortedLocations.map(toLocationItem)"
+        item-props
+        placeholder="Ubicación"
+        hide-details
+        clearable
+        class="filter-location"
+      />
       <v-switch
         v-model="showInactive"
         :label="`Mostrar inactivos (${inactiveCount})`"
@@ -200,6 +234,11 @@ async function save() {
             <div class="text-body-2 text-secondary-label">{{ item.email }}</div>
           </div>
         </div>
+      </template>
+
+      <template #item.location_id="{ item }">
+        <span v-if="item.location_id" class="text-body-2">{{ locationName[item.location_id] }}</span>
+        <span v-else class="text-body-2 text-secondary-label">—</span>
       </template>
 
       <template #item.role="{ item }">
@@ -252,6 +291,19 @@ async function save() {
             maxlength="150"
             autocomplete="off"
             class="mb-1"
+          />
+
+          <label class="field-label">Ubicación</label>
+          <v-autocomplete
+            v-model="fields.location_id"
+            :items="locationItems"
+            item-props
+            :rules="locationRules"
+            placeholder="Sin ubicación"
+            clearable
+            hint="Sus tickets se registran en automático con esta ubicación."
+            persistent-hint
+            class="mb-3"
           />
 
           <label class="field-label">Rol</label>
@@ -314,6 +366,9 @@ async function save() {
 }
 .filter-role {
   flex: 0 1 180px;
+}
+.filter-location {
+  flex: 0 1 220px;
 }
 .avatar-initials {
   font-size: 12px;

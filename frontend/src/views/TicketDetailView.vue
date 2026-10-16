@@ -187,6 +187,12 @@ watch(ticketId, load, { immediate: true })
             <dt>Solicitante</dt>
             <dd>{{ ticket.created_by_user_name ?? '—' }}</dd>
 
+            <dt>Ubicación</dt>
+            <dd>
+              <span v-if="ticket.location_name">{{ ticket.location_name }}</span>
+              <span v-else class="text-secondary-label">Sin ubicación</span>
+            </dd>
+
             <dt>Asignado a</dt>
             <dd>
               <span v-if="ticket.assigned_to_user_name">{{ ticket.assigned_to_user_name }}</span>

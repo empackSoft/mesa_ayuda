@@ -33,6 +33,13 @@ class Ticket(Base):
         nullable=True
     )
 
+    # Ubicación desde donde se levantó (la del usuario al momento de crearlo)
+    location_id = Column(
+        Integer,
+        ForeignKey("locations.id"),
+        nullable=True
+    )
+
     description = Column(Text, nullable=False)
 
 
@@ -48,6 +55,7 @@ class Ticket(Base):
     )
 
     incidencia = relationship("Incidencia")
+    location = relationship("Location")
     subincidencia = relationship("Subincidencia")
 
     created_by = relationship(

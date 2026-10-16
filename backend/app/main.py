@@ -14,6 +14,8 @@ from models.ticketHistory import TicketHistory
 from models.ticketAttachment import TicketAttachment
 from models.ticketComment import TicketComment
 from routers.dashboardRouter import router as dashboard_router
+from models.location import Location
+from routers.locationRouter import router as location_router
 
 
 
@@ -22,7 +24,52 @@ from routers.dashboardRouter import router as dashboard_router
 # CAMBIO PARA QUITAR ANTES DE USAR EN PRODUCCION
 ENABLE_DOCS = os.getenv("ENABLE_DOCS", "false").lower() == "true"
 
+# create_all no renombra ni agrega columnas a tablas que ya existen (no hay Alembic).
+# Cambios de esquema pequeños e idempotentes (se pueden correr en cada arranque):
+
+# 1) "branches" (sucursales) pasó a ser "locations" (ubicaciones: sucursal, CEDIS o corporativo).
+#    Va antes de create_all para que no cree una tabla "locations" vacía.
+with engine.begin() as connection:
+    connection.execute(text("""
+        DO $$
+        BEGIN
+            IF to_regclass('public.branches') IS NOT NULL AND to_regclass('public.locations') IS NULL THEN
+                ALTER TABLE branches RENAME TO locations;
+            END IF;
+            IF EXISTS (SELECT 1 FROM information_schema.columns
+                       WHERE table_name = 'users' AND column_name = 'branch_id') THEN
+                ALTER TABLE users RENAME COLUMN branch_id TO location_id;
+            END IF;
+            IF EXISTS (SELECT 1 FROM information_schema.columns
+                       WHERE table_name = 'tickets' AND column_name = 'branch_id') THEN
+                ALTER TABLE tickets RENAME COLUMN branch_id TO location_id;
+            END IF;
+        END $$;
+    """))
+
 Base.metadata.create_all(bind=engine)
+
+# 2) Columnas que faltan en tablas creadas con versiones anteriores del modelo
+with engine.begin() as connection:
+    connection.execute(text("""
+        DO $$
+        BEGIN
+            -- Tipo de ubicación; al crearse se clasifican las existentes por su nombre
+            IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                           WHERE table_name = 'locations' AND column_name = 'type') THEN
+                ALTER TABLE locations ADD COLUMN type VARCHAR(20) NOT NULL DEFAULT 'branch';
+                UPDATE locations SET type = 'cedis' WHERE name ILIKE 'cedis%';
+                UPDATE locations SET type = 'corporate' WHERE name ILIKE 'corporativo%';
+            END IF;
+        END $$;
+    """))
+    connection.execute(text(
+        "ALTER TABLE locations ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE"
+    ))
+    connection.execute(text("ALTER TABLE locations ALTER COLUMN code DROP NOT NULL"))
+    connection.execute(text(
+        "ALTER TABLE tickets ADD COLUMN IF NOT EXISTS location_id INTEGER REFERENCES locations(id)"
+    ))
 
 app = FastAPI(
     title="Mesa Ayuda API",
@@ -52,6 +99,7 @@ app.include_router(incidencia_router,prefix=API_PREFIX)
 app.include_router(user_router,prefix=API_PREFIX)
 app.include_router(auth_router,prefix=API_PREFIX)
 app.include_router(dashboard_router,prefix=API_PREFIX)
+app.include_router(location_router,prefix=API_PREFIX)
 
 @app.get("/health")
 def health():

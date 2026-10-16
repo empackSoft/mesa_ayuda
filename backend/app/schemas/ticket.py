@@ -35,6 +35,9 @@ class TicketResponse(BaseModel):
     assigned_to_user_id: Optional[int]
     assigned_to_user_name: Optional[str]
 
+    location_id: Optional[int] = None
+    location_name: Optional[str] = None
+
     description: str
 
 

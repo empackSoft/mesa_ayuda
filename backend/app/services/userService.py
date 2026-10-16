@@ -3,6 +3,7 @@ from security.password import hash_password
 from sqlalchemy.orm import Session
 from fastapi import HTTPException
 from models.user import User
+from models.location import Location
 
 VALID_ROLES = [
     "user",
@@ -61,10 +62,33 @@ def get_user_by_email(
     )
 
 
+def ensure_location_exists(db: Session, location_id):
+    if location_id is None:
+        return
+
+    if not db.query(Location).filter(Location.id == location_id).first():
+        raise HTTPException(
+            status_code=400,
+            detail="La ubicación no existe"
+        )
+
+
+# Los tickets toman la ubicación de quien los levanta, así que un "user" siempre debe tener una
+def ensure_user_has_location(role, location_id):
+    if role == "user" and location_id is None:
+        raise HTTPException(
+            status_code=400,
+            detail="Asigna una ubicación al usuario: sus tickets se registran con ella"
+        )
+
+
 def create_user(
         db: Session,
         user_data: UserCreate
 ):
+    ensure_location_exists(db, user_data.location_id)
+    ensure_user_has_location(user_data.role, user_data.location_id)
+
     if user_data.role not in VALID_ROLES:
         raise HTTPException(
             status_code=400,
@@ -87,7 +111,7 @@ def create_user(
         email=user_data.email,
         password_hash=hash_password(user_data.password),
         role=user_data.role,
-        branch_id=user_data.branch_id,
+        location_id=user_data.location_id,
         is_active=True
     )
 
@@ -124,6 +148,17 @@ def update_user(
                 status_code=400,
                 detail="No puedes desactivar tu propia cuenta"
             )
+
+    if "location_id" in data:
+        ensure_location_exists(db, data["location_id"])
+
+    # Solo se valida si se toca el rol o la ubicación (los usuarios importados sin
+    # ubicación se pueden seguir editando hasta que se les asigne una)
+    if "location_id" in data or "role" in data:
+        ensure_user_has_location(
+            data.get("role", user.role),
+            data.get("location_id", user.location_id)
+        )
 
     if "role" in data and data["role"] not in VALID_ROLES:
         raise HTTPException(

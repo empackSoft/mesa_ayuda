@@ -36,6 +36,25 @@ export const PRIORITY_COLORS = {
   urgent: 'error',
 }
 
+// Tipos de ubicación (en el mismo orden en que se muestran)
+export const LOCATION_TYPE_LABELS = {
+  branch: 'Sucursal',
+  cedis: 'CEDIS',
+  corporate: 'Corporativo',
+}
+
+export const LOCATION_TYPE_PLURALS = {
+  branch: 'Sucursales',
+  cedis: 'CEDIS',
+  corporate: 'Corporativos',
+}
+
+export const LOCATION_TYPE_ICONS = {
+  branch: 'store',
+  cedis: 'warehouse',
+  corporate: 'building-2',
+}
+
 export const label = (map, value) => map[value] ?? value
 
 // Mismas transiciones que VALID_TRANSITIONS en services/ticketService.py

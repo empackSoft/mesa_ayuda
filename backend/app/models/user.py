@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Boolean, DateTime
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey
 from datetime import datetime
 
 from database import Base
@@ -16,7 +16,8 @@ class User(Base):
 
     role = Column(String(50), nullable=False, default="user")
 
-    branch_id = Column(Integer, nullable=True)
+    # Ubicación del usuario; sus tickets se registran con ella
+    location_id = Column(Integer, ForeignKey("locations.id"), nullable=True)
 
     is_active = Column(Boolean, default=True)
 

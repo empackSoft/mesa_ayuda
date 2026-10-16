@@ -8,7 +8,7 @@ class UserCreate(BaseModel):
     email: EmailStr
     password: str = Field(..., min_length=6)
     role: str = Field(default="user")
-    branch_id: Optional[int] = None
+    location_id: Optional[int] = None
 
 
 class UserUpdate(BaseModel):
@@ -16,7 +16,7 @@ class UserUpdate(BaseModel):
     email: Optional[EmailStr] = None
     password: Optional[str] = Field(None, min_length=6)
     role: Optional[str] = None
-    branch_id: Optional[int] = None
+    location_id: Optional[int] = None
     is_active: Optional[bool] = None
 
 
@@ -25,7 +25,7 @@ class UserResponse(BaseModel):
     name: str
     email: str
     role: str
-    branch_id: Optional[int]
+    location_id: Optional[int]
     is_active: bool
     created_at: datetime
     updated_at: Optional[datetime]

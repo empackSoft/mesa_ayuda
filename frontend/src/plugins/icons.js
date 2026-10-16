@@ -1,13 +1,13 @@
 import { h } from 'vue'
 import {
-  ArrowDown, ArrowLeft, ArrowUp, Calendar, Check, ChartColumn, ChevronDown,
+  ArrowDown, ArrowLeft, ArrowUp, Building2, Calendar, Check, ChartColumn, ChevronDown,
   ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, ChevronUp, Circle,
   CircleAlert, CircleCheck, CircleDot, CircleX, ClipboardPaste, Clock, Download,
   Ellipsis, Eye, EyeOff, File, FileArchive, FileSpreadsheet, FileText, Filter,
   Flag, Hammer, History, House, Image, Inbox, Info, LifeBuoy, Loader, Lock,
   LogOut, Mail, MapPinOff, Menu, MessageSquare, Minus, Paperclip, Pencil, Plus,
-  RefreshCw, Search, Send, Shapes, Square, SquareCheck, SquareMinus, Star,
-  StarHalf, Ticket, TrendingDown, TrendingUp, TriangleAlert, Upload, UserPlus, Users, X,
+  RefreshCw, Search, Send, Shapes, SlidersHorizontal, Square, SquareCheck, SquareMinus, Star, Store,
+  StarHalf, Ticket, TrendingDown, TrendingUp, TriangleAlert, Upload, UserPlus, Users, Warehouse, X,
 } from 'lucide-vue-next'
 
 // Registro explícito: solo se incluyen en el build los iconos que se usan.
@@ -53,6 +53,7 @@ const ICONS = {
   lock: Lock,
   'log-out': LogOut,
   mail: Mail,
+  'building-2': Building2,
   'map-pin-off': MapPinOff,
   menu: Menu,
   'message-square': MessageSquare,
@@ -64,6 +65,9 @@ const ICONS = {
   search: Search,
   send: Send,
   shapes: Shapes,
+  store: Store,
+  warehouse: Warehouse,
+  'sliders-horizontal': SlidersHorizontal,
   square: Square,
   'square-check': SquareCheck,
   'square-minus': SquareMinus,

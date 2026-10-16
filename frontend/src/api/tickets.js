@@ -46,6 +46,12 @@ export const catalogApi = {
     http.get(`/incidencias/${incidenciaId}/subincidencias`).then((r) => r.data),
 }
 
+export const locationsApi = {
+  list: () => http.get('/locations/').then((r) => r.data),
+  create: (payload) => http.post('/locations/', payload).then((r) => r.data),
+  update: (id, payload) => http.put(`/locations/${id}`, payload).then((r) => r.data),
+}
+
 export const usersApi = {
   staff: () => http.get('/users/staff').then((r) => r.data),
 }

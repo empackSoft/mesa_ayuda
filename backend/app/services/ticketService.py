@@ -85,6 +85,8 @@ def build_ticket_response(ticket: Ticket):
         "created_by_user_name": ticket.created_by.name if ticket.created_by else None,
         "assigned_to_user_id": ticket.assigned_to_user_id,
         "assigned_to_user_name": ticket.assigned_to.name if ticket.assigned_to else None,
+        "location_id": ticket.location_id,
+        "location_name": ticket.location.name if ticket.location else None,
         "description": ticket.description,
         "status": ticket.status,
         "priority": ticket.priority,
@@ -249,10 +251,18 @@ def create_ticket(
         subincidencia_id=ticket_data.subincidencia_id
     )
 
+    # El ticket se relaciona en automático con la ubicación de quien lo levanta
+    if current_user is not None and current_user.role == "user" and current_user.location_id is None:
+        raise HTTPException(
+            status_code=400,
+            detail="Tu cuenta no tiene ubicación asignada. Pide a un administrador que te la asigne."
+        )
+
     new_ticket = Ticket(
         incidencia_id=ticket_data.incidencia_id,
         subincidencia_id=ticket_data.subincidencia_id,
         created_by_user_id=current_user.id if current_user else None,
+        location_id=current_user.location_id if current_user else None,
         description=ticket_data.description,
         status="open",
         priority="medium"

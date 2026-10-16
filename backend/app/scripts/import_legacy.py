@@ -349,6 +349,10 @@ def run(path, replace=False, real_emails=False):
         if person not in staff_users:
             name, real_email, active = STAFF[person]
             user = users_by_email.get((real_email or '').lower())
+            if user is not None and user.role == 'user':
+                # Ya existía como solicitante (también levantó tickets): es técnico
+                user.role = 'support'
+                user.name = name
             if user is None:
                 slug = '.'.join(key(part) for part in name.split()[:2])
                 email = make_email(real_email if real_emails and real_email else f"{slug}@empack.com.mx")
@@ -391,6 +395,7 @@ def run(path, replace=False, real_emails=False):
                 db.add(user)
                 db.flush()
                 used_emails.add(email)
+                users_by_email[email] = user
             requesters[ident] = user
         return requesters[ident]
 

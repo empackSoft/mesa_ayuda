@@ -348,14 +348,16 @@ def run(path, replace=False, real_emails=False):
             STAFF[person] = (f"Técnico {clean(asesor).upper()}", None, False)
         if person not in staff_users:
             name, real_email, active = STAFF[person]
-            user = users_by_email.get((real_email or '').lower())
+            slug = '.'.join(key(part) for part in name.split()[:2])
+            wanted = (real_email if real_emails and real_email else f"{slug}@empack.com.mx").lower()
+            # Se busca por el correo real y por el que se le pone al crearlo (si ya se importó antes)
+            user = users_by_email.get((real_email or '').lower()) or users_by_email.get(wanted)
             if user is not None and user.role == 'user':
                 # Ya existía como solicitante (también levantó tickets): es técnico
                 user.role = 'support'
                 user.name = name
             if user is None:
-                slug = '.'.join(key(part) for part in name.split()[:2])
-                email = make_email(real_email if real_emails and real_email else f"{slug}@empack.com.mx")
+                email = make_email(wanted)
                 user = User(name=name, email=email, password_hash=random_hash,
                             role='support', is_active=active)
                 db.add(user)
@@ -384,10 +386,11 @@ def run(path, replace=False, real_emails=False):
         if not ident:
             return None
         if ident not in requesters:
-            user = users_by_email.get(ident) if real_emails else None
+            wanted = ident if '@' in ident else f"{ident}@empack.com.mx"
+            user = users_by_email.get(wanted) if real_emails else None
             if user is None:
                 name = names_by_email[ident].most_common(1)[0][0] if names_by_email[ident] else ident.split('@')[0]
-                email = make_email(ident if '@' in ident else f"{ident}@empack.com.mx")
+                email = make_email(wanted)
                 top_location = location_by_email[ident].most_common(1)
                 location = get_location(top_location[0][0]) if top_location else None
                 user = User(name=name[:150], email=email, password_hash=random_hash, role='user',

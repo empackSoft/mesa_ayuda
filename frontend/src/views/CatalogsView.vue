@@ -1,12 +1,7 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import http, { errorMessage } from '../api/http'
-import {
-  LOCATION_TYPE_ICONS,
-  LOCATION_TYPE_LABELS,
-  LOCATION_TYPE_PLURALS,
-  NOTIFY_GROUP_LABELS,
-} from '../utils/labels'
+import { LOCATION_TYPE_ICONS, LOCATION_TYPE_LABELS, LOCATION_TYPE_PLURALS } from '../utils/labels'
 
 // Catálogo de incidencias (categorías), subincidencias (subcategorías) y ubicaciones. Solo admin.
 // No se borra nada: se desactiva, para no romper tickets que ya las usan.
@@ -19,7 +14,10 @@ const newLocationType = ref('branch')
 const locationSearch = ref('')
 const locationTypeFilter = ref('all')
 const LOCATION_TYPES = Object.keys(LOCATION_TYPE_LABELS)
-const NOTIFY_GROUPS = Object.keys(NOTIFY_GROUP_LABELS)
+const notifyGroups = ref([])
+const groupDrafts = ref({}) // { [id]: [correos] } mientras se edita
+const savingGroup = ref(null)
+const ALWAYS_GROUP = 'always' // va en copia en todos los tickets; no se elige por categoría
 const selectedId = ref(null)
 const loading = ref(false)
 const error = ref('')
@@ -40,14 +38,17 @@ async function load() {
   loading.value = true
   error.value = ''
   try {
-    const [inc, subs, locationList] = await Promise.all([
+    const [inc, subs, locationList, groups] = await Promise.all([
       http.get('/incidencias/').then((r) => r.data),
       http.get('/incidencias/subincidencias/all').then((r) => r.data),
       http.get('/locations/').then((r) => r.data),
+      http.get('/notify-groups/').then((r) => r.data),
     ])
     incidencias.value = inc
     subincidencias.value = subs
     locations.value = locationList
+    notifyGroups.value = groups
+    groupDrafts.value = Object.fromEntries(groups.map((g) => [g.id, [...g.emails]]))
     if (!incidencias.value.some((i) => i.id === selectedId.value)) {
       selectedId.value = incidencias.value[0]?.id ?? null
     }
@@ -158,14 +159,41 @@ function setLocationFilter(type) {
   if (type !== 'all') newLocationType.value = type
 }
 
+const categoryGroups = computed(() => notifyGroups.value.filter((g) => g.key !== ALWAYS_GROUP))
+
+function groupName(key) {
+  return notifyGroups.value.find((g) => g.key === key)?.name ?? key
+}
+
 async function changeNotifyGroup(item, group) {
   if (!group || group === item.notify_group) return
   try {
     const { data } = await http.put(`/incidencias/${item.id}`, { notify_group: group })
     replaceItem('incidencia', data)
-    notify(`"${data.name}" ahora avisa al grupo ${NOTIFY_GROUP_LABELS[data.notify_group]}`)
+    notify(`"${data.name}" ahora avisa al grupo ${groupName(data.notify_group)}`)
   } catch (e) {
     notify(errorMessage(e), 'error')
+  }
+}
+
+function groupChanged(group) {
+  return (groupDrafts.value[group.id] ?? []).join(',') !== group.emails.join(',')
+}
+
+async function saveGroup(group) {
+  savingGroup.value = group.id
+  try {
+    const { data } = await http.put(`/notify-groups/${group.id}`, {
+      emails: groupDrafts.value[group.id],
+    })
+    const i = notifyGroups.value.findIndex((g) => g.id === data.id)
+    notifyGroups.value[i] = data
+    groupDrafts.value[data.id] = [...data.emails]
+    notify(`Grupo "${data.name}" actualizado`)
+  } catch (e) {
+    notify(errorMessage(e), 'error')
+  } finally {
+    savingGroup.value = null
   }
 }
 
@@ -289,7 +317,7 @@ async function saveEdit() {
             </v-list-item-title>
             <v-list-item-subtitle>
               {{ subCount[inc.id] ?? 0 }} subcategoría(s) ·
-              {{ NOTIFY_GROUP_LABELS[inc.notify_group] ?? inc.notify_group }}
+              {{ groupName(inc.notify_group) }}
               <span v-if="!inc.is_active"> · inactiva</span>
             </v-list-item-subtitle>
             <template #append>
@@ -338,8 +366,8 @@ async function saveEdit() {
               mandatory
               @update:model-value="changeNotifyGroup(selected, $event)"
             >
-              <v-btn v-for="group in NOTIFY_GROUPS" :key="group" :value="group" size="small">
-                {{ NOTIFY_GROUP_LABELS[group] }}
+              <v-btn v-for="group in categoryGroups" :key="group.key" :value="group.key" size="small">
+                {{ group.name }}
               </v-btn>
             </v-btn-toggle>
           </div>
@@ -397,6 +425,42 @@ async function saveEdit() {
       </v-card>
     </v-col>
   </v-row>
+
+  <!-- Grupos de aviso por correo -->
+  <v-card class="mt-6">
+    <div class="pa-5 pb-3">
+      <div class="font-weight-medium">Grupos de aviso por correo</div>
+      <div class="text-caption text-secondary-label">
+        Ticket nuevo: avisa a todos los grupos. Ya asignado: al grupo de su categoría y al técnico
+        asignado. "Siempre en copia" va en todos. Escribe un correo y presiona Enter para agregarlo.
+      </div>
+    </div>
+    <v-divider />
+    <div class="pa-5 d-flex flex-column ga-4">
+      <div v-for="group in notifyGroups" :key="group.id" class="d-flex flex-wrap align-center ga-3">
+        <div class="group-name">{{ group.name }}</div>
+        <v-combobox
+          v-model="groupDrafts[group.id]"
+          multiple
+          chips
+          closable-chips
+          hide-details
+          density="compact"
+          placeholder="correo@empack.com.mx"
+          class="group-emails"
+        />
+        <v-btn
+          color="primary"
+          variant="tonal"
+          :loading="savingGroup === group.id"
+          :disabled="!groupChanged(group)"
+          @click="saveGroup(group)"
+        >
+          Guardar
+        </v-btn>
+      </div>
+    </div>
+  </v-card>
 
   <!-- Ubicaciones: sucursales, CEDIS y corporativos -->
   <v-card class="mt-6">
@@ -539,6 +603,14 @@ async function saveEdit() {
 <style scoped>
 .location-search {
   max-width: 240px;
+}
+.group-name {
+  flex: 0 0 140px;
+  font-size: 14px;
+  font-weight: 500;
+}
+.group-emails {
+  flex: 1 1 320px;
 }
 .location-type-select {
   flex: 0 0 160px;

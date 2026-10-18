@@ -16,6 +16,8 @@ from models.ticketComment import TicketComment
 from routers.dashboardRouter import router as dashboard_router
 from models.location import Location
 from routers.locationRouter import router as location_router
+from models.notifyGroup import NotifyGroup
+from routers.notifyGroupRouter import router as notify_group_router
 
 
 
@@ -83,6 +85,19 @@ with engine.begin() as connection:
             END IF;
         END $$;
     """))
+    # Grupos de aviso iniciales (solo si la tabla está vacía; después se editan en Catálogos)
+    connection.execute(text("""
+        INSERT INTO notify_groups (key, name, emails)
+        SELECT * FROM (VALUES
+            ('infra', 'Infraestructura',
+             ARRAY['sistemas3@empack.com.mx', 'sistemas2@empack.com.mx', 'sistemas4@empack.com.mx']::varchar[]),
+            ('general', 'General',
+             ARRAY['sistemas5@empack.com.mx', 'raul_jaramillo@empack.com.mx']::varchar[]),
+            ('always', 'Siempre en copia',
+             ARRAY['sistemas@empack.com.mx']::varchar[])
+        ) AS seed(key, name, emails)
+        WHERE NOT EXISTS (SELECT 1 FROM notify_groups)
+    """))
 
 app = FastAPI(
     title="Mesa Ayuda API",
@@ -113,6 +128,7 @@ app.include_router(user_router,prefix=API_PREFIX)
 app.include_router(auth_router,prefix=API_PREFIX)
 app.include_router(dashboard_router,prefix=API_PREFIX)
 app.include_router(location_router,prefix=API_PREFIX)
+app.include_router(notify_group_router,prefix=API_PREFIX)
 
 @app.get("/health")
 def health():

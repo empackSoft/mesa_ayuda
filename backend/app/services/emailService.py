@@ -27,11 +27,6 @@ FAKE_EMAIL_SUFFIX = "example.com"
 _email_executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="email")
 
 
-def emails_from_env(name: str) -> list:
-    """Lista de correos separados por coma en una variable del .env."""
-    return [email for email in os.getenv(name, "").split(",") if email.strip()]
-
-
 def _clean(emails, exclude=()) -> list:
     """Quita vacíos, falsos y repetidos, respetando el orden."""
     if isinstance(emails, str):

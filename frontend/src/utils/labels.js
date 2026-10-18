@@ -55,12 +55,6 @@ export const LOCATION_TYPE_ICONS = {
   corporate: 'building-2',
 }
 
-// Grupo de soporte al que avisa cada categoría (NOTIFY_GROUPS en services/incidenciaService.py)
-export const NOTIFY_GROUP_LABELS = {
-  infra: 'Infraestructura',
-  general: 'General',
-}
-
 export const label = (map, value) => map[value] ?? value
 
 // Mismas transiciones que VALID_TRANSITIONS en services/ticketService.py

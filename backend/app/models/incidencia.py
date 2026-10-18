@@ -10,7 +10,7 @@ class Incidencia(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(100), nullable=False, unique=True)
     is_active = Column(Boolean, default=True)
-    # A qué grupo de soporte avisa por correo (ver NOTIFY_GROUPS en incidenciaService)
+    # Key del grupo de soporte al que avisa por correo (tabla notify_groups)
     notify_group = Column(String(20), nullable=False, default="general", server_default="general")
 
     subincidencias = relationship(

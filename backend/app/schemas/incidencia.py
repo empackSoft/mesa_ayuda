@@ -4,17 +4,20 @@ from typing import Optional
 
 class IncidenciaCreate(BaseModel):
     name: str = Field(..., min_length=2, max_length=100)
+    notify_group: str = "general"
 
 
 class IncidenciaUpdate(BaseModel):
     name: Optional[str] = Field(None, min_length=2, max_length=100)
     is_active: Optional[bool] = None
+    notify_group: Optional[str] = None
 
 
 class IncidenciaResponse(BaseModel):
     id: int
     name: str
     is_active: bool
+    notify_group: str
 
     class Config:
         from_attributes = True

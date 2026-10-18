@@ -70,6 +70,19 @@ with engine.begin() as connection:
     connection.execute(text(
         "ALTER TABLE tickets ADD COLUMN IF NOT EXISTS location_id INTEGER REFERENCES locations(id)"
     ))
+    connection.execute(text("""
+        DO $$
+        BEGIN
+            -- Grupo de aviso por correo; al crearse se marcan las categorías de infraestructura
+            IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                           WHERE table_name = 'incidencias' AND column_name = 'notify_group') THEN
+                ALTER TABLE incidencias ADD COLUMN notify_group VARCHAR(20) NOT NULL DEFAULT 'general';
+                UPDATE incidencias SET notify_group = 'infra'
+                WHERE name IN ('Hardware', 'Redes', 'Impresoras', 'Telefonía',
+                               'Equipo de Cómputo', 'Biométrico');
+            END IF;
+        END $$;
+    """))
 
 app = FastAPI(
     title="Mesa Ayuda API",

@@ -1,7 +1,12 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import http, { errorMessage } from '../api/http'
-import { LOCATION_TYPE_ICONS, LOCATION_TYPE_LABELS, LOCATION_TYPE_PLURALS } from '../utils/labels'
+import {
+  LOCATION_TYPE_ICONS,
+  LOCATION_TYPE_LABELS,
+  LOCATION_TYPE_PLURALS,
+  NOTIFY_GROUP_LABELS,
+} from '../utils/labels'
 
 // Catálogo de incidencias (categorías), subincidencias (subcategorías) y ubicaciones. Solo admin.
 // No se borra nada: se desactiva, para no romper tickets que ya las usan.
@@ -14,6 +19,7 @@ const newLocationType = ref('branch')
 const locationSearch = ref('')
 const locationTypeFilter = ref('all')
 const LOCATION_TYPES = Object.keys(LOCATION_TYPE_LABELS)
+const NOTIFY_GROUPS = Object.keys(NOTIFY_GROUP_LABELS)
 const selectedId = ref(null)
 const loading = ref(false)
 const error = ref('')
@@ -152,6 +158,17 @@ function setLocationFilter(type) {
   if (type !== 'all') newLocationType.value = type
 }
 
+async function changeNotifyGroup(item, group) {
+  if (!group || group === item.notify_group) return
+  try {
+    const { data } = await http.put(`/incidencias/${item.id}`, { notify_group: group })
+    replaceItem('incidencia', data)
+    notify(`"${data.name}" ahora avisa al grupo ${NOTIFY_GROUP_LABELS[data.notify_group]}`)
+  } catch (e) {
+    notify(errorMessage(e), 'error')
+  }
+}
+
 async function changeLocationType(item, type) {
   if (type === item.type) return
   try {
@@ -271,7 +288,8 @@ async function saveEdit() {
               {{ inc.name }}
             </v-list-item-title>
             <v-list-item-subtitle>
-              {{ subCount[inc.id] ?? 0 }} subcategoría(s)
+              {{ subCount[inc.id] ?? 0 }} subcategoría(s) ·
+              {{ NOTIFY_GROUP_LABELS[inc.notify_group] ?? inc.notify_group }}
               <span v-if="!inc.is_active"> · inactiva</span>
             </v-list-item-subtitle>
             <template #append>
@@ -307,6 +325,27 @@ async function saveEdit() {
         <div class="pa-5 pb-3">
           <div class="text-caption text-secondary-label">Subcategorías de</div>
           <div class="font-weight-medium">{{ selected.name }}</div>
+        </div>
+        <div class="px-5 pb-4">
+          <div class="d-flex flex-wrap align-center ga-3">
+            <span class="text-body-2">Aviso por correo al grupo</span>
+            <v-btn-toggle
+              :model-value="selected.notify_group"
+              color="primary"
+              density="compact"
+              variant="outlined"
+              divided
+              mandatory
+              @update:model-value="changeNotifyGroup(selected, $event)"
+            >
+              <v-btn v-for="group in NOTIFY_GROUPS" :key="group" :value="group" size="small">
+                {{ NOTIFY_GROUP_LABELS[group] }}
+              </v-btn>
+            </v-btn-toggle>
+          </div>
+          <div class="text-caption text-secondary-label mt-1">
+            Ya asignado el ticket, los avisos van a este grupo, al técnico asignado y a quien lo levantó.
+          </div>
         </div>
         <form class="d-flex ga-2 px-5 pb-3" @submit.prevent="createSub">
           <v-text-field

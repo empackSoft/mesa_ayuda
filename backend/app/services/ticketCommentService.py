@@ -5,8 +5,7 @@ from models.ticket import Ticket
 from models.ticketComment import TicketComment
 from services.ticketHistoryService import create_history
 from schemas.ticketComment import TicketCommentCreate
-from services.emailService import send_email, build_ticket_link
-from models.user import User
+from services.ticketNotifyService import notify_ticket
 
 def find_ticket_or_404(db: Session, ticket_id: int):
     ticket = (
@@ -77,74 +76,14 @@ def create_comment(
         new_value="Comentario interno" if is_internal else "Comentario público"
     )
 
-    # Notificaciones por correo
-    link = build_ticket_link(ticket.id)
-
-    if not is_internal:
-        # COMENTARIO PÚBLICO
-        if current_user.role in ["support", "admin"]:
-            # Comenta soporte -> avisar al creador del ticket
-            creator = (
-                db.query(User)
-                .filter(User.id == ticket.created_by_user_id)
-                .first()
-            )
-
-            if creator and creator.email:
-                send_email(
-                    to=creator.email,
-                    subject=f"Nuevo comentario en tu ticket #{ticket.id}",
-                    body=(
-                        f"Hola {creator.name},\n\n"
-                        f"Hay un nuevo comentario en tu ticket #{ticket.id}.\n\n"
-                        f"Puedes verlo y responder aquí: {link}\n\n"
-                        f"Sistema Mesa de Ayuda EmPack"
-                    )
-                )
-        else:
-            # Comenta el usuario -> avisar al técnico asignado
-            if ticket.assigned_to_user_id:
-                technician = (
-                    db.query(User)
-                    .filter(User.id == ticket.assigned_to_user_id)
-                    .first()
-                )
-
-                if technician and technician.email:
-                    send_email(
-                        to=technician.email,
-                        subject=f"Nuevo comentario en el ticket #{ticket.id}",
-                        body=(
-                            f"Hola {technician.name},\n\n"
-                            f"El usuario agregó un comentario en el ticket #{ticket.id}.\n\n"
-                            f"Puedes verlo y responder aquí: {link}\n\n"
-                            f"Sistema Mesa de Ayuda EmPack"
-                        )
-                    )
-    else:
-        # COMENTARIO INTERNO -> avisar SOLO a soporte/admin, NUNCA al usuario
-        staff_users = (
-            db.query(User)
-            .filter(
-                User.role.in_(["support", "admin"]),
-                User.is_active == True,
-                User.id != current_user.id  # no notificar al que escribió
-            )
-            .all()
-        )
-
-        for staff in staff_users:
-            if staff.email:
-                send_email(
-                    to=staff.email,
-                    subject=f"Nuevo comentario interno en el ticket #{ticket.id}",
-                    body=(
-                        f"Hola {staff.name},\n\n"
-                        f"Se agregó un comentario interno en el ticket #{ticket.id}.\n\n"
-                        f"Puedes verlo aquí: {link}\n\n"
-                        f"Sistema Mesa de Ayuda EmPack"
-                    )
-                )
+    # Notificación por correo: las notas internas NUNCA llegan al usuario
+    kind = "Nota interna" if is_internal else "Nuevo comentario"
+    notify_ticket(
+        db, ticket,
+        subject=f"{kind} de {current_user.name}",
+        message=f"{kind} de {current_user.name}:\n\n{new_comment.body}",
+        include_creator=not is_internal
+    )
 
     return new_comment
 

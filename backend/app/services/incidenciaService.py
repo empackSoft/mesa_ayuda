@@ -8,6 +8,23 @@ from schemas.incidencia import IncidenciaCreate, IncidenciaUpdate
 from schemas.subincidencia import SubincidenciaCreate, SubincidenciaUpdate
 
 
+# Grupos de aviso por correo. Los correos de cada grupo van en el .env como
+# EMAIL_GROUP_<GRUPO> (ej. EMAIL_GROUP_INFRA). Para un grupo nuevo, agregarlo aquí,
+# en el .env y en utils/labels.js del front.
+NOTIFY_GROUPS = [
+    "infra",    # infraestructura: redes, hardware, impresoras, telefonía, equipo de cómputo
+    "general",  # todo lo demás
+]
+
+
+def validate_notify_group(notify_group: str):
+    if notify_group not in NOTIFY_GROUPS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Grupo de aviso inválido. Usa uno de: {', '.join(NOTIFY_GROUPS)}"
+        )
+
+
 def get_incidencias(db: Session):
     return (
         db.query(Incidencia)
@@ -42,6 +59,8 @@ def get_incidencia_by_id(db: Session, incidencia_id: int):
 
 
 def create_incidencia(db: Session, incidencia_data: IncidenciaCreate):
+    validate_notify_group(incidencia_data.notify_group)
+
     existing = (
         db.query(Incidencia)
         .filter(Incidencia.name == incidencia_data.name)
@@ -56,7 +75,8 @@ def create_incidencia(db: Session, incidencia_data: IncidenciaCreate):
 
     incidencia = Incidencia(
         name=incidencia_data.name,
-        is_active=True
+        is_active=True,
+        notify_group=incidencia_data.notify_group
     )
 
     db.add(incidencia)
@@ -74,6 +94,9 @@ def update_incidencia(
     incidencia = get_incidencia_by_id(db, incidencia_id)
 
     data = incidencia_data.model_dump(exclude_unset=True)
+
+    if "notify_group" in data:
+        validate_notify_group(data["notify_group"])
 
     for field, value in data.items():
         setattr(incidencia, field, value)

@@ -4,7 +4,7 @@ import { errorMessage } from '../api/http'
 import { ticketsApi } from '../api/tickets'
 import { useAuthStore } from '../stores/auth'
 import { formatDateTime, initials, timeAgo } from '../utils/format'
-import { ROLE_LABELS, label } from '../utils/labels'
+import { ROLE_LABELS, isFinal, label } from '../utils/labels'
 
 const props = defineProps({
   ticket: { type: Object, required: true },
@@ -21,7 +21,7 @@ const body = ref('')
 const internal = ref(false)
 const sending = ref(false)
 
-const closed = computed(() => props.ticket.status === 'closed')
+const closed = computed(() => isFinal(props.ticket.status))
 
 // La descripción del ticket se muestra como el primer mensaje de la conversación
 const messages = computed(() => [
@@ -118,7 +118,8 @@ defineExpose({ load })
     <v-divider class="my-4" />
 
     <div v-if="closed" class="text-body-2 text-secondary-label d-flex align-center">
-      <v-icon icon="lock" size="16" class="mr-2" /> El ticket está cerrado; ya no se pueden agregar comentarios.
+      <v-icon icon="lock" size="16" class="mr-2" />
+      El ticket está {{ ticket.status === 'cancelled' ? 'cancelado' : 'cerrado' }}; ya no se pueden agregar comentarios.
     </div>
 
     <form v-else @submit.prevent="send">

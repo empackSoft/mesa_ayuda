@@ -4,13 +4,21 @@ import { useRouter } from 'vue-router'
 import { useDisplay } from 'vuetify'
 import AppFooter from '../components/AppFooter.vue'
 import BrandLogo from '../components/BrandLogo.vue'
+import ChangePasswordDialog from '../components/ChangePasswordDialog.vue'
+import NotificationBell from '../components/NotificationBell.vue'
+import PendingFeedbackDialog from '../components/PendingFeedbackDialog.vue'
 import SeasonalMascot from '../components/SeasonalMascot.vue'
 import { useAuthStore } from '../stores/auth'
+import { useFeedbackStore } from '../stores/feedback'
 import { ROLE_LABELS, label } from '../utils/labels'
 import { SEASONS, currentSeason, seasonCaption } from '../utils/seasons'
 
 const auth = useAuthStore()
+const feedback = useFeedbackStore()
 const router = useRouter()
+
+const showPassword = ref(false)
+const passwordChanged = ref(false)
 const { mobile } = useDisplay()
 
 const drawer = ref(!mobile.value)
@@ -56,6 +64,7 @@ const initials = computed(() =>
 )
 
 function logout() {
+  feedback.clear()
   auth.logout()
   router.push({ name: 'login' })
 }
@@ -102,6 +111,8 @@ function logout() {
       <BrandLogo :size="46" :show-text="false" />
     </RouterLink>
 
+    <NotificationBell />
+
     <v-menu location="bottom end">
       <template #activator="{ props }">
         <v-btn v-bind="props" variant="text" class="mr-3 px-2" height="44">
@@ -121,6 +132,7 @@ function logout() {
         </div>
         <v-divider class="mb-1" />
         <v-list density="compact" class="pa-0">
+          <v-list-item prepend-icon="key-round" title="Cambiar contraseña" rounded="lg" @click="showPassword = true" />
           <v-list-item prepend-icon="log-out" title="Cerrar sesión" rounded="lg" @click="logout" />
         </v-list>
       </v-card>
@@ -136,6 +148,13 @@ function logout() {
       <AppFooter />
     </div>
   </v-main>
+
+  <ChangePasswordDialog v-model="showPassword" @changed="passwordChanged = true" />
+  <PendingFeedbackDialog />
+
+  <v-snackbar v-model="passwordChanged" color="success" timeout="4000" location="bottom right">
+    Tu contraseña se actualizó.
+  </v-snackbar>
 </template>
 
 <style scoped>

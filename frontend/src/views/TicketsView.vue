@@ -1,20 +1,24 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { errorMessage } from '../api/http'
 import { ticketsApi } from '../api/tickets'
 import MascotPeek from '../components/MascotPeek.vue'
 import NewTicketDialog from '../components/NewTicketDialog.vue'
 import { useAuthStore } from '../stores/auth'
+import { isMuted, playSound } from '../utils/alerts'
 import { timeAgo, formatDateTime } from '../utils/format'
 import {
-  PRIORITY_COLORS, PRIORITY_LABELS, STATUS_COLORS, STATUS_LABELS, label,
+  PRIORITY_COLORS, PRIORITY_LABELS, STATUS_COLORS, STATUS_LABELS, isFinal, label,
 } from '../utils/labels'
 
 const auth = useAuthStore()
 const router = useRouter()
 
+// La paginación, búsqueda y orden se hacen en el servidor (ya son miles de tickets)
 const tickets = ref([])
+const total = ref(0)
+const statusCounts = ref({})
 const loading = ref(false)
 const error = ref('')
 const showNew = ref(false)
@@ -24,68 +28,89 @@ const statusFilter = ref('active')
 const priorityFilter = ref(null)
 const onlyMine = ref(false)
 
-// Se piden todos los tickets visibles y se filtra en el navegador (volumen chico)
+const page = ref(1)
+const itemsPerPage = ref(25)
+const sortBy = ref([{ key: 'id', order: 'desc' }])
+
+let requestId = 0
+
 async function load() {
+  const current = ++requestId
   loading.value = true
   error.value = ''
   try {
-    tickets.value = await ticketsApi.list()
+    const sort = sortBy.value[0] ?? { key: 'id', order: 'desc' }
+    const result = await ticketsApi.list({
+      status: statusFilter.value,
+      priority: priorityFilter.value || undefined,
+      q: search.value?.trim() || undefined,
+      assigned_to_me: onlyMine.value || undefined,
+      page: page.value,
+      page_size: itemsPerPage.value,
+      sort_by: sort.key,
+      sort_desc: sort.order === 'desc',
+    })
+    // Si el usuario siguió escribiendo, se ignora la respuesta vieja
+    if (current !== requestId) return
+    tickets.value = result.items
+    total.value = result.total
+    statusCounts.value = result.status_counts
   } catch (e) {
-    error.value = errorMessage(e, 'No se pudieron cargar los tickets')
+    if (current === requestId) error.value = errorMessage(e, 'No se pudieron cargar los tickets')
   } finally {
-    loading.value = false
+    if (current === requestId) loading.value = false
   }
 }
 
-onMounted(load)
+// Al cambiar un filtro se regresa a la página 1
+function reloadFromFirstPage() {
+  if (page.value !== 1) page.value = 1
+  else load()
+}
 
-const STATUS_TABS = [
-  { value: 'active', title: 'Activos', match: (t) => t.status !== 'closed' },
-  { value: 'all', title: 'Todos', match: () => true },
-  ...Object.keys(STATUS_LABELS).map((s) => ({
-    value: s,
-    title: STATUS_LABELS[s],
-    match: (t) => t.status === s,
-  })),
-]
+watch([statusFilter, priorityFilter, onlyMine], reloadFromFirstPage)
 
-const countByTab = computed(() =>
-  Object.fromEntries(STATUS_TABS.map((tab) => [tab.value, tickets.value.filter(tab.match).length])),
-)
-
-const filtered = computed(() => {
-  const tab = STATUS_TABS.find((t) => t.value === statusFilter.value)
-  const q = search.value.trim().toLowerCase()
-  return tickets.value.filter((t) => {
-    if (!tab.match(t)) return false
-    if (priorityFilter.value && t.priority !== priorityFilter.value) return false
-    if (onlyMine.value && t.assigned_to_user_id !== auth.user?.id) return false
-    if (!q) return true
-    return [
-      `#${t.id}`,
-      t.description,
-      t.incidencia,
-      t.subincidencia,
-      t.created_by_user_name,
-      t.assigned_to_user_name,
-    ].some((v) => v?.toLowerCase().includes(q))
-  })
+let searchTimer = null
+watch(search, () => {
+  clearTimeout(searchTimer)
+  searchTimer = setTimeout(reloadFromFirstPage, 350)
 })
 
-const priorityItems = Object.entries(PRIORITY_LABELS).map(([value, title]) => ({ value, title }))
+// v-data-table-server avisa al montarse y al cambiar de página, tamaño u orden
+function onOptions(options) {
+  page.value = options.page
+  itemsPerPage.value = options.itemsPerPage
+  sortBy.value = options.sortBy
+  load()
+}
 
-const PRIORITY_ORDER = { low: 0, medium: 1, high: 2, urgent: 3 }
+function sumCounts(match) {
+  return Object.entries(statusCounts.value).reduce((a, [s, n]) => (match(s) ? a + n : a), 0)
+}
+
+const STATUS_TABS = [
+  { value: 'active', title: 'Activos' },
+  { value: 'all', title: 'Todos' },
+  ...Object.keys(STATUS_LABELS).map((s) => ({ value: s, title: STATUS_LABELS[s] })),
+]
+
+const countByTab = computed(() => ({
+  active: sumCounts((s) => !isFinal(s)),
+  all: sumCounts(() => true),
+  ...Object.fromEntries(Object.keys(STATUS_LABELS).map((s) => [s, statusCounts.value[s] ?? 0])),
+}))
+
+const hasFilters = computed(() =>
+  Boolean(search.value?.trim() || priorityFilter.value || onlyMine.value || statusFilter.value !== 'all'),
+)
+
+const priorityItems = Object.entries(PRIORITY_LABELS).map(([value, title]) => ({ value, title }))
 
 const headers = computed(() => [
   { title: '#', key: 'id', width: 70 },
   { title: 'Ticket', key: 'description', sortable: false },
   { title: 'Estado', key: 'status', width: 130 },
-  {
-    title: 'Prioridad',
-    key: 'priority',
-    width: 120,
-    sortRaw: (a, b) => PRIORITY_ORDER[a.priority] - PRIORITY_ORDER[b.priority],
-  },
+  { title: 'Prioridad', key: 'priority', width: 120 },
   ...(auth.isStaff ? [{ title: 'Solicitante', key: 'created_by_user_name', width: 170 }] : []),
   { title: 'Asignado a', key: 'assigned_to_user_name', width: 170 },
   { title: 'Creado', key: 'created_at', width: 130 },
@@ -95,8 +120,10 @@ function openTicket(_event, { item }) {
   router.push({ name: 'ticket-detail', params: { id: item.id } })
 }
 
-// El aviso viaja en history.state para mostrarse ya en el detalle
+// El aviso viaja en history.state para mostrarse ya en el detalle.
+// Suena también para quien lo levanta (la campanita no le avisa de su propia acción).
 function onCreated(ticket, failed) {
+  if (!isMuted()) playSound('new_ticket')
   const notice = failed.length
     ? { color: 'warning', text: `Ticket #${ticket.id} creado, pero no se pudieron subir: ${failed.join('; ')}` }
     : { color: 'success', text: `Ticket #${ticket.id} creado. Soporte ya fue notificado.` }
@@ -158,14 +185,19 @@ function onCreated(ticket, failed) {
 
     <v-divider />
 
-    <v-data-table
+    <v-data-table-server
       :headers="headers"
-      :items="filtered"
+      :items="tickets"
+      :items-length="total"
       :loading="loading"
-      :sort-by="[{ key: 'id', order: 'desc' }]"
-      :items-per-page="25"
+      :page="page"
+      :items-per-page="itemsPerPage"
+      :items-per-page-options="[10, 25, 50, 100]"
+      :sort-by="sortBy"
+      must-sort
       hover
       class="tickets-table"
+      @update:options="onOptions"
       @click:row="openTicket"
     >
       <template #item.id="{ item }">
@@ -181,6 +213,9 @@ function onCreated(ticket, failed) {
 
       <template #item.status="{ item }">
         <v-chip :color="STATUS_COLORS[item.status]">{{ label(STATUS_LABELS, item.status) }}</v-chip>
+        <div v-if="item.feedback_state === 'confirm'" class="text-caption text-warning mt-1">
+          Espera confirmación
+        </div>
       </template>
 
       <template #item.priority="{ item }">
@@ -200,19 +235,19 @@ function onCreated(ticket, failed) {
 
       <template #no-data>
         <v-empty-state
-          :icon="tickets.length ? 'inbox' : undefined"
-          :title="tickets.length ? 'Sin resultados' : 'Aún no hay tickets'"
-          :text="tickets.length ? 'Ningún ticket coincide con los filtros.' : 'Cuando se cree un ticket aparecerá aquí.'"
+          :icon="hasFilters ? 'inbox' : undefined"
+          :title="hasFilters ? 'Sin resultados' : 'Aún no hay tickets'"
+          :text="hasFilters ? 'Ningún ticket coincide con los filtros.' : 'Cuando se cree un ticket aparecerá aquí.'"
           size="56"
         >
-          <template v-if="!tickets.length && !loading" #media>
+          <template v-if="!hasFilters && !loading" #media>
             <div class="d-flex justify-center mb-2">
               <MascotPeek :size="110" />
             </div>
           </template>
         </v-empty-state>
       </template>
-    </v-data-table>
+    </v-data-table-server>
   </v-card>
 
   <NewTicketDialog v-model="showNew" @created="onCreated" />

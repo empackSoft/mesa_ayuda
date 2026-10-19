@@ -11,6 +11,13 @@ export const ticketsApi = {
     http.patch(`/tickets/${id}/assign`, { assigned_to_user_id: userId }).then((r) => r.data),
   changeStatus: (id, status) => http.patch(`/tickets/${id}/status`, { status }).then((r) => r.data),
   close: (id) => http.patch(`/tickets/${id}/close`).then((r) => r.data),
+  cancel: (id, reason) => http.patch(`/tickets/${id}/cancel`, { reason }).then((r) => r.data),
+
+  // Confirmación de la solución y encuesta (solo quien levantó el ticket)
+  pendingFeedback: () => http.get('/tickets/pending-feedback').then((r) => r.data),
+  survey: (id, rating, comment) =>
+    http.post(`/tickets/${id}/survey`, { rating, comment }).then((r) => r.data),
+  reopen: (id, reason) => http.post(`/tickets/${id}/reopen`, { reason }).then((r) => r.data),
 
   // El backend responde 404 cuando aún no hay historial; se trata como lista vacía
   history: (id) =>
@@ -54,4 +61,20 @@ export const locationsApi = {
 
 export const usersApi = {
   staff: () => http.get('/users/staff').then((r) => r.data),
+}
+
+export const accountApi = {
+  changePassword: (currentPassword, newPassword) =>
+    http
+      .put('/auth/password', { current_password: currentPassword, new_password: newPassword })
+      .then((r) => r.data),
+  forgotPassword: (email) => http.post('/auth/forgot-password', { email }).then((r) => r.data),
+  resetPassword: (token, newPassword) =>
+    http.post('/auth/reset-password', { token, new_password: newPassword }).then((r) => r.data),
+}
+
+export const notificationsApi = {
+  list: () => http.get('/notifications/').then((r) => r.data),
+  markRead: (id) => http.patch(`/notifications/${id}/read`).then((r) => r.data),
+  markAllRead: () => http.patch('/notifications/read-all').then((r) => r.data),
 }

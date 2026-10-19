@@ -12,6 +12,7 @@ export const STATUS_LABELS = {
   pending: 'Pendiente',
   resolved: 'Resuelto',
   closed: 'Cerrado',
+  cancelled: 'Cancelado',
 }
 
 export const STATUS_COLORS = {
@@ -20,6 +21,22 @@ export const STATUS_COLORS = {
   pending: 'warning',
   resolved: 'success',
   closed: 'grey',
+  cancelled: 'error',
+}
+
+// Ya no admiten cambios, comentarios ni archivos (FINAL_STATUSES en ticketService.py)
+export const FINAL_STATUSES = ['closed', 'cancelled']
+export const isFinal = (status) => FINAL_STATUSES.includes(status)
+
+// Mismo plazo que FEEDBACK_HOURS en ticketService.py
+export const FEEDBACK_HOURS = 24
+
+export const RATING_LABELS = {
+  1: 'Muy mala',
+  2: 'Mala',
+  3: 'Regular',
+  4: 'Buena',
+  5: 'Excelente',
 }
 
 export const PRIORITY_LABELS = {
@@ -62,8 +79,9 @@ export const STATUS_TRANSITIONS = {
   open: ['in_progress'],
   in_progress: ['pending', 'resolved'],
   pending: ['in_progress', 'resolved'],
-  resolved: ['closed'],
+  resolved: ['in_progress', 'closed'],
   closed: [],
+  cancelled: [],
 }
 
 // Texto de cada evento del historial (action, old_value, new_value crudos del backend)
@@ -86,6 +104,18 @@ export function historyText(item, staffById = {}) {
       return 'Cambió la categoría'
     case 'CLOSE':
       return 'Cerró el ticket'
+    case 'CANCEL':
+      return `Canceló el ticket: ${newValue}`
+    case 'CONFIRM':
+      return 'Confirmó la solución y cerró el ticket'
+    case 'REOPEN':
+      return 'Indicó que el problema continúa'
+    case 'AUTO_CLOSE':
+      return `Cerró el ticket automáticamente (${FEEDBACK_HOURS} h sin respuesta)`
+    case 'SURVEY':
+      return oldValue === 'auto'
+        ? `Registró la encuesta en automático con ${newValue} estrellas`
+        : `Calificó la atención con ${newValue} de 5 estrellas`
     case 'UPLOAD_ATTACHMENT':
       return 'Adjuntó un archivo'
     case 'COMMENT':

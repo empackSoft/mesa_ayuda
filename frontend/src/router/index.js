@@ -14,6 +14,13 @@ const routes = [
     meta: { public: true },
   },
   {
+    // "Olvidé mi contraseña" y link del correo (?token=…)
+    path: '/restablecer-contrasena',
+    name: 'password-reset',
+    component: () => import('../views/PasswordResetView.vue'),
+    meta: { public: true },
+  },
+  {
     path: '/',
     component: MainLayout,
     children: [

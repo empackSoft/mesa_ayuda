@@ -5,7 +5,9 @@ import BarList from '../components/BarList.vue'
 import TrendAreaChart from '../components/TrendAreaChart.vue'
 import HeatmapGrid from '../components/HeatmapGrid.vue'
 import { formatDuration } from '../utils/format'
-import { LOCATION_TYPE_LABELS, LOCATION_TYPE_PLURALS, PRIORITY_LABELS, STATUS_LABELS } from '../utils/labels'
+import {
+  LOCATION_TYPE_LABELS, LOCATION_TYPE_PLURALS, PRIORITY_LABELS, RATING_LABELS, STATUS_LABELS, isFinal,
+} from '../utils/labels'
 
 const data = ref(null)
 const loading = ref(false)
@@ -31,7 +33,9 @@ const PRIORITIES = Object.keys(PRIORITY_LABELS)
 
 const statusCounts = computed(() => data.value?.status_counts ?? {})
 const total = computed(() => Object.values(statusCounts.value).reduce((a, b) => a + b, 0))
-const active = computed(() => total.value - (statusCounts.value.closed ?? 0))
+const active = computed(() =>
+  Object.entries(statusCounts.value).reduce((a, [s, n]) => (isFinal(s) ? a : a + n), 0),
+)
 
 const byStatus = computed(() =>
   STATUSES.map((s) => ({ key: s, label: STATUS_LABELS[s], value: statusCounts.value[s] ?? 0 })),
@@ -46,6 +50,19 @@ const byPriority = computed(() =>
 )
 
 const times = computed(() => data.value?.resolution_times ?? {})
+
+// --- Encuesta de satisfacción ---
+const satisfaction = computed(() => data.value?.satisfaction ?? { total: 0, by_rating: {} })
+const byRating = computed(() =>
+  [5, 4, 3, 2, 1].map((r) => ({
+    key: r,
+    label: `${r} ★ ${RATING_LABELS[r]}`,
+    value: satisfaction.value.by_rating?.[r] ?? 0,
+  })),
+)
+const autoPct = computed(() =>
+  satisfaction.value.total ? Math.round((satisfaction.value.auto / satisfaction.value.total) * 100) : 0,
+)
 
 // --- Tendencia diaria (creados vs resueltos) ---
 // Colores validados para daltonismo; azul y dorado de la paleta EmPack
@@ -395,6 +412,57 @@ const technicians = computed(() => {
       </v-col>
     </v-row>
 
+    <!-- Satisfacción -->
+    <v-row dense class="mt-2">
+      <v-col cols="12" md="5">
+        <v-card class="pa-5 h-100">
+          <div class="section-title">Satisfacción del servicio</div>
+          <p class="text-caption text-secondary-label mb-4">
+            Encuesta obligatoria al cerrar cada ticket.
+          </p>
+          <template v-if="satisfaction.total">
+            <div class="d-flex align-center ga-3 mb-4">
+              <span class="sat-average">{{ satisfaction.average?.toFixed(1) }}</span>
+              <div>
+                <v-rating
+                  :model-value="satisfaction.average"
+                  readonly
+                  half-increments
+                  density="compact"
+                  size="20"
+                  color="grey-lighten-1"
+                  active-color="secondary"
+                />
+                <div class="text-caption text-secondary-label">
+                  {{ satisfaction.total }} encuesta(s) · {{ autoPct }}% en automático (sin respuesta)
+                </div>
+              </div>
+            </div>
+            <BarList :items="byRating" />
+          </template>
+          <p v-else class="text-body-2 text-secondary-label">Aún no hay encuestas contestadas.</p>
+        </v-card>
+      </v-col>
+      <v-col cols="12" md="7">
+        <v-card class="pa-5 h-100">
+          <div class="section-title">Últimos comentarios</div>
+          <p class="text-caption text-secondary-label mb-4">Lo que escribieron los usuarios al calificar.</p>
+          <p v-if="!satisfaction.recent_comments?.length" class="text-body-2 text-secondary-label">
+            Aún no hay comentarios.
+          </p>
+          <div v-for="c in satisfaction.recent_comments" :key="c.ticket_id" class="sat-comment">
+            <div class="d-flex align-center ga-2 mb-1">
+              <RouterLink :to="{ name: 'ticket-detail', params: { id: c.ticket_id } }" class="text-body-2">
+                #{{ c.ticket_id }}
+              </RouterLink>
+              <span class="text-body-2 sat-stars">{{ '★'.repeat(c.rating) }}{{ '☆'.repeat(5 - c.rating) }}</span>
+            </div>
+            <div class="text-body-2 sat-text">{{ c.comment }}</div>
+          </div>
+        </v-card>
+      </v-col>
+    </v-row>
+
     <!-- Picos de trabajo -->
     <v-row dense class="mt-2">
       <v-col cols="12">
@@ -470,6 +538,24 @@ const technicians = computed(() => {
 </template>
 
 <style scoped>
+.sat-average {
+  font-size: 40px;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  line-height: 1;
+}
+.sat-comment + .sat-comment {
+  border-top: 1px solid var(--app-hairline);
+  margin-top: 12px;
+  padding-top: 12px;
+}
+.sat-stars {
+  color: rgb(var(--v-theme-secondary));
+  letter-spacing: 1px;
+}
+.sat-text {
+  white-space: pre-wrap;
+}
 .kpis {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));

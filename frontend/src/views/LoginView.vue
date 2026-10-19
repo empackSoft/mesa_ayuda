@@ -37,6 +37,7 @@ async function submit() {
       : '/'
     router.replace(redirect)
   } catch (e) {
+    // 429 = demasiados intentos: el backend dice cuánto esperar
     error.value = e.response?.status === 401
       ? 'Correo o contraseña incorrectos.'
       : errorMessage(e)
@@ -89,9 +90,14 @@ async function submit() {
             :append-inner-icon="showPassword ? 'eye-off' : 'eye'"
             :title="showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'"
             :rules="[rules.required]"
-            class="mb-4"
+            class="mb-1"
             @click:append-inner="showPassword = !showPassword"
           />
+          <div class="text-center mb-4">
+            <RouterLink :to="{ name: 'password-reset' }" class="text-body-2 forgot-link">
+              ¿Olvidaste tu contraseña?
+            </RouterLink>
+          </div>
 
           <v-btn type="submit" color="primary" size="large" height="48" block :loading="loading">
             Iniciar sesión
@@ -125,6 +131,13 @@ async function submit() {
 .login-card {
   box-shadow: var(--app-shadow-float) !important;
   border: none !important;
+}
+.forgot-link {
+  color: rgb(var(--v-theme-primary));
+  text-decoration: none;
+}
+.forgot-link:hover {
+  text-decoration: underline;
 }
 .mascot-perch {
   position: relative;

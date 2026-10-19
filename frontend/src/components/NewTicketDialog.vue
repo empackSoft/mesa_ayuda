@@ -188,6 +188,11 @@ async function submit() {
             </v-list-item>
           </v-list>
         </v-form>
+
+        <v-alert type="info" variant="tonal" density="compact" icon="info" class="mt-4 text-body-2">
+          Cuando Soporte lo marque como resuelto, te pediremos confirmar la solución y calificar la atención.
+          Si no respondes en 24 horas, se cerrará automáticamente con 5 estrellas.
+        </v-alert>
       </v-card-text>
 
       <v-card-actions class="px-5 pb-4">

@@ -1,0 +1,2 @@
+# Scripts de shell siempre con fin de línea Unix (se corren en el VPS)
+*.sh text eol=lf

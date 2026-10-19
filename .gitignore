@@ -11,3 +11,6 @@ backend/app/uploads/tickets/*
 
 # Respaldos de editores
 *.save
+
+# Respaldos diarios (scripts/backup.sh)
+backups/

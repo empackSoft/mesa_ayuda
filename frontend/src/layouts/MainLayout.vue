@@ -76,7 +76,8 @@ function logout() {
     :temporary="mobile"
     :rail="isRail"
     rail-width="76"
-    class="app-glass sidebar"
+    class="sidebar"
+    :class="mobile ? 'sidebar--solid' : 'app-glass'"
     width="248"
   >
     <div class="sidebar-mascot" :class="{ 'sidebar-mascot--rail': isRail }">
@@ -160,6 +161,10 @@ function logout() {
 <style scoped>
 .sidebar {
   border-right: 1px solid var(--app-hairline) !important;
+}
+/* En pantallas angostas el menú se abre encima del contenido: fondo sólido para que no se transparente */
+.sidebar--solid {
+  background: rgb(var(--v-theme-surface)) !important;
 }
 .topbar {
   border-bottom: 1px solid var(--app-hairline) !important;

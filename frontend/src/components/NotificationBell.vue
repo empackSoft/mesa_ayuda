@@ -163,9 +163,9 @@ onBeforeUnmount(() => {
   <v-menu v-model="open" location="bottom end" :close-on-content-click="false">
     <template #activator="{ props }">
       <v-btn v-bind="props" icon variant="text" class="mr-1" :title="unread ? `${unread} aviso(s) sin leer` : 'Avisos'">
-        <v-badge :model-value="unread > 0" :content="unread > 99 ? '99+' : unread" color="error" floating>
-          <v-icon icon="bell" size="20" />
-        </v-badge>
+        <v-icon icon="bell" size="20" />
+        <!-- Contador dentro del botón: un v-badge flotante se salía y la barra superior lo recortaba -->
+        <span v-if="unread" class="bell-count">{{ unread > 99 ? '99+' : unread }}</span>
       </v-btn>
     </template>
 
@@ -233,6 +233,23 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
+.bell-count {
+  position: absolute;
+  top: 4px;
+  right: 2px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: rgb(var(--v-theme-error));
+  color: rgb(var(--v-theme-on-error));
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 18px;
+  text-align: center;
+  box-shadow: 0 0 0 2px rgb(var(--v-theme-surface));
+  pointer-events: none;
+}
 .list {
   max-height: 420px;
   overflow-y: auto;

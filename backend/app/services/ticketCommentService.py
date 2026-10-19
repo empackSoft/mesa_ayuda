@@ -31,11 +31,11 @@ def create_comment(
 ):
     ticket = find_ticket_or_404(db, ticket_id)
 
-    # Bloquear comentarios en tickets cerrados
-    if ticket.status == "closed":
+    # Bloquear comentarios en tickets cerrados o cancelados
+    if ticket.status in ["closed", "cancelled"]:
         raise HTTPException(
             status_code=400,
-            detail="No se puede comentar en un ticket cerrado"
+            detail="No se puede comentar en un ticket cerrado o cancelado"
         )
 
     is_internal = comment_data.is_internal
@@ -82,7 +82,8 @@ def create_comment(
         db, ticket,
         subject=f"{kind} de {current_user.name}",
         message=f"{kind} de {current_user.name}:\n\n{new_comment.body}",
-        include_creator=not is_internal
+        include_creator=not is_internal,
+        actor=current_user
     )
 
     return new_comment

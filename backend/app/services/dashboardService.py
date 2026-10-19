@@ -8,6 +8,10 @@ from models.user import User
 from models.ticketHistory import TicketHistory
 from models.incidencia import Incidencia
 from models.location import Location
+from models.ticketSurvey import TicketSurvey
+
+# Ya no son carga de trabajo
+FINAL_STATUSES = ["closed", "cancelled"]
 
 
 def get_status_counts(db: Session):
@@ -20,11 +24,11 @@ def get_status_counts(db: Session):
     return {status: count for status, count in rows}
 
 
-# Solo tickets abiertos (sin cerrar): es la carga de trabajo pendiente
+# Solo tickets abiertos (sin cerrar ni cancelar): es la carga de trabajo pendiente
 def get_priority_counts(db: Session):
     rows = (
         db.query(Ticket.priority, func.count(Ticket.id))
-        .filter(Ticket.status != "closed")
+        .filter(Ticket.status.notin_(FINAL_STATUSES))
         .group_by(Ticket.priority)
         .all()
     )
@@ -253,7 +257,7 @@ def get_category_counts(db: Session):
             {"incidencia_id": incidencia_id, "name": name, "total": 0, "open": 0}
         )
         item["total"] += count
-        if status != "closed":
+        if status not in FINAL_STATUSES:
             item["open"] += count
 
     return sorted(result.values(), key=lambda i: i["total"], reverse=True)
@@ -341,7 +345,7 @@ def get_location_counts(db: Session):
             {"location_id": location_id, "name": name, "type": location_type, "total": 0, "open": 0}
         )
         item["total"] += count
-        if status != "closed":
+        if status not in FINAL_STATUSES:
             item["open"] += count
 
     return sorted(result.values(), key=lambda i: i["total"], reverse=True)
@@ -409,8 +413,49 @@ def get_resolution_distribution(db: Session, days: int = DISTRIBUTION_DAYS):
     return periods
 
 
+def get_satisfaction(db: Session):
+    """Encuesta de satisfacción: promedio, reparto por estrellas y últimos comentarios."""
+    rows = (
+        db.query(TicketSurvey.rating, TicketSurvey.is_auto, func.count(TicketSurvey.id))
+        .group_by(TicketSurvey.rating, TicketSurvey.is_auto)
+        .all()
+    )
+
+    by_rating = {str(r): 0 for r in range(1, 6)}
+    total = 0
+    auto = 0
+    points = 0
+
+    for rating, is_auto, count in rows:
+        by_rating[str(rating)] += count
+        total += count
+        points += rating * count
+        if is_auto:
+            auto += count
+
+    comments = (
+        db.query(TicketSurvey.ticket_id, TicketSurvey.rating, TicketSurvey.comment, TicketSurvey.created_at)
+        .filter(TicketSurvey.comment.isnot(None))
+        .order_by(TicketSurvey.id.desc())
+        .limit(5)
+        .all()
+    )
+
+    return {
+        "total": total,
+        "auto": auto,
+        "average": round(points / total, 2) if total else None,
+        "by_rating": by_rating,
+        "recent_comments": [
+            {"ticket_id": t, "rating": r, "comment": c, "created_at": d}
+            for t, r, c, d in comments
+        ]
+    }
+
+
 def get_dashboard(db: Session):
     return {
+        "satisfaction": get_satisfaction(db),
         "location_counts": get_location_counts(db),
         "resolution_distribution": get_resolution_distribution(db),
         "category_counts": get_category_counts(db),

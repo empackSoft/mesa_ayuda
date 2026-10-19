@@ -1,4 +1,7 @@
-from sqlalchemy.orm import Session
+from datetime import datetime, timedelta
+
+from sqlalchemy import or_, case, func
+from sqlalchemy.orm import Session, aliased, joinedload
 from fastapi import UploadFile,HTTPException
 from sqlalchemy.exc import IntegrityError
 
@@ -11,7 +14,7 @@ import os
 import shutil
 import uuid
 from models.ticketAttachment import TicketAttachment
-from services.ticketNotifyService import notify_ticket, STATUS_LABELS
+from services.ticketNotifyService import notify_ticket, STATUS_LABELS, CLOSING_POLICY
 
 from schemas.ticket import (
     TicketCreate,
@@ -42,8 +45,25 @@ VALID_STATUS = [
     "in_progress",
     "pending",
     "resolved",
-    "closed"
+    "closed",
+    "cancelled"
 ]
+
+# Estados finales: ya no admiten cambios, comentarios ni archivos
+FINAL_STATUSES = [
+    "closed",
+    "cancelled"
+]
+
+# Se puede cancelar mientras Soporte no lo haya resuelto
+CANCELLABLE_STATUSES = [
+    "open",
+    "in_progress",
+    "pending"
+]
+
+# Tiempo que tiene el usuario para confirmar la solución y contestar la encuesta
+FEEDBACK_HOURS = 24
 
 VALID_PRIORITY = [
     "low",
@@ -68,11 +88,61 @@ VALID_TRANSITIONS = {
     ],
 
     "resolved": [
+        "in_progress",
         "closed"
     ],
 
-    "closed": []
+    "closed": [],
+
+    "cancelled": []
 }
+
+PRIORITY_ORDER = case(
+    {"low": 0, "medium": 1, "high": 2, "urgent": 3},
+    value=Ticket.priority,
+    else_=1
+)
+
+MAX_PAGE_SIZE = 100
+
+
+def feedback_state(ticket: Ticket):
+    """
+    Qué le falta responder al solicitante:
+    - "confirm": está resuelto; debe confirmar (y calificar) o reabrirlo.
+    - "survey": ya está cerrado; solo falta la encuesta.
+    Los tickets sin resolved_at/closed_at (importados o anteriores a la encuesta) no piden nada.
+    """
+    if ticket.survey is not None:
+        return None
+    if ticket.status == "resolved" and ticket.resolved_at is not None:
+        return "confirm"
+    if ticket.status == "closed" and ticket.closed_at is not None:
+        return "survey"
+    return None
+
+
+def feedback_due_at(ticket: Ticket):
+    state = feedback_state(ticket)
+    if state == "confirm":
+        return ticket.resolved_at + timedelta(hours=FEEDBACK_HOURS)
+    if state == "survey":
+        return ticket.closed_at + timedelta(hours=FEEDBACK_HOURS)
+    return None
+
+
+def ensure_not_final(ticket: Ticket):
+    if ticket.status == "closed":
+        raise HTTPException(
+            status_code=400,
+            detail="El ticket ya está cerrado"
+        )
+
+    if ticket.status == "cancelled":
+        raise HTTPException(
+            status_code=400,
+            detail="El ticket está cancelado"
+        )
 
 def build_ticket_response(ticket: Ticket):
     return {
@@ -91,7 +161,18 @@ def build_ticket_response(ticket: Ticket):
         "status": ticket.status,
         "priority": ticket.priority,
         "created_at": ticket.created_at,
-        "updated_at": ticket.updated_at
+        "updated_at": ticket.updated_at,
+        "resolved_at": ticket.resolved_at,
+        "closed_at": ticket.closed_at,
+        "cancel_reason": ticket.cancel_reason,
+        "feedback_state": feedback_state(ticket),
+        "feedback_due_at": feedback_due_at(ticket),
+        "survey": {
+            "rating": ticket.survey.rating,
+            "comment": ticket.survey.comment,
+            "is_auto": ticket.survey.is_auto,
+            "created_at": ticket.survey.created_at
+        } if ticket.survey else None
     }
 
 def assign_ticket(
@@ -129,10 +210,13 @@ def assign_ticket(
             detail="El ticket solo puede asignarse a soporte o administrador"
         )
 
+    ensure_not_final(ticket)
+
     old_user = ticket.assigned_to_user_id
 
     ticket.assigned_to_user_id = assigned_user.id
     ticket.status = "in_progress"
+    ticket.resolved_at = None
 
     db.commit()
     db.refresh(ticket)
@@ -148,7 +232,8 @@ def assign_ticket(
     notify_ticket(
         db, ticket,
         subject=f"Asignado a {assigned_user.name}",
-        message=f"El ticket #{ticket.id} se asignó a {assigned_user.name}."
+        message=f"El ticket #{ticket.id} se asignó a {assigned_user.name}.",
+        actor=current_user
     )
 
     return build_ticket_response(ticket)
@@ -276,7 +361,10 @@ def create_ticket(
         notify_ticket(
             db, new_ticket,
             subject=f"Nuevo ticket: {new_ticket.incidencia.name}",
-            message=f"Se levantó el ticket #{new_ticket.id}."
+            message=f"Se levantó el ticket #{new_ticket.id}.",
+            actor=current_user,
+            footer=CLOSING_POLICY,
+            kind="new_ticket"
         )
 
     except IntegrityError:
@@ -288,6 +376,10 @@ def create_ticket(
 
     return build_ticket_response(new_ticket)
 
+def _escape_like(text: str) -> str:
+    return text.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
 def get_tickets(
         db: Session,
         status: str = None,
@@ -296,21 +388,31 @@ def get_tickets(
         subincidencia_id: int = None,
         created_from=None,
         created_to=None,
+        q: str = None,
+        assigned_to_me: bool = False,
+        page: int = 1,
+        page_size: int = 25,
+        sort_by: str = "id",
+        sort_desc: bool = True,
         current_user=None
 ):
-    query = db.query(Ticket)
+    """
+    Lista paginada. `status` acepta un estado, "active" (sin cerrar ni cancelar) o "all".
+    Devuelve también cuántos hay por estado con los demás filtros, para las pestañas del front.
+    """
+    creator = aliased(User)
+    assignee = aliased(User)
+
+    query = (
+        db.query(Ticket)
+        .join(Incidencia, Incidencia.id == Ticket.incidencia_id)
+        .join(Subincidencia, Subincidencia.id == Ticket.subincidencia_id)
+        .outerjoin(creator, creator.id == Ticket.created_by_user_id)
+        .outerjoin(assignee, assignee.id == Ticket.assigned_to_user_id)
+    )
 
     if current_user and current_user.role == "user":
         query = query.filter(Ticket.created_by_user_id == current_user.id)
-
-    if status:
-        if status not in VALID_STATUS:
-            raise HTTPException(
-                status_code=400,
-                detail="Estado inválido"
-            )
-
-        query = query.filter(Ticket.status == status)
 
     if priority:
         if priority not in VALID_PRIORITY:
@@ -333,16 +435,85 @@ def get_tickets(
     if created_to:
         query = query.filter(Ticket.created_at <= created_to)
 
-    tickets = (
+    if assigned_to_me and current_user:
+        query = query.filter(Ticket.assigned_to_user_id == current_user.id)
+
+    q = (q or "").strip()
+    if q:
+        pattern = f"%{_escape_like(q)}%"
+        conditions = [
+            Ticket.description.ilike(pattern, escape="\\"),
+            Incidencia.name.ilike(pattern, escape="\\"),
+            Subincidencia.name.ilike(pattern, escape="\\"),
+            creator.name.ilike(pattern, escape="\\"),
+            assignee.name.ilike(pattern, escape="\\"),
+        ]
+        number = q.lstrip("#")
+        if number.isdigit() and len(number) < 10:
+            conditions.append(Ticket.id == int(number))
+        query = query.filter(or_(*conditions))
+
+    # Conteo por estado con todos los filtros menos el de estado
+    status_counts = dict(
         query
-        .order_by(Ticket.id.desc())
+        .with_entities(Ticket.status, func.count(Ticket.id))
+        .group_by(Ticket.status)
         .all()
     )
 
-    return [
-        build_ticket_response(ticket)
-        for ticket in tickets
-    ]
+    if status == "active":
+        query = query.filter(Ticket.status.notin_(FINAL_STATUSES))
+    elif status and status != "all":
+        if status not in VALID_STATUS:
+            raise HTTPException(
+                status_code=400,
+                detail="Estado inválido"
+            )
+
+        query = query.filter(Ticket.status == status)
+
+    total = query.count()
+
+    sort_columns = {
+        "id": Ticket.id,
+        "created_at": Ticket.created_at,
+        "status": Ticket.status,
+        "priority": PRIORITY_ORDER,
+        "created_by_user_name": creator.name,
+        "assigned_to_user_name": assignee.name,
+    }
+    column = sort_columns.get(sort_by, Ticket.id)
+    order = column.desc().nullslast() if sort_desc else column.asc().nullslast()
+
+    page_size = max(1, min(page_size, MAX_PAGE_SIZE))
+    page = max(1, page)
+
+    tickets = (
+        query
+        .options(
+            joinedload(Ticket.incidencia),
+            joinedload(Ticket.subincidencia),
+            joinedload(Ticket.created_by),
+            joinedload(Ticket.assigned_to),
+            joinedload(Ticket.location),
+            joinedload(Ticket.survey)
+        )
+        .order_by(order, Ticket.id.desc())
+        .offset((page - 1) * page_size)
+        .limit(page_size)
+        .all()
+    )
+
+    return {
+        "items": [
+            build_ticket_response(ticket)
+            for ticket in tickets
+        ],
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+        "status_counts": status_counts
+    }
 
 def get_ticket_by_id(
         db: Session,
@@ -369,6 +540,8 @@ def update_ticket(
         db,
         ticket_id
     )
+
+    ensure_not_final(ticket)
 
     data = ticket_data.model_dump(exclude_unset=True)
 
@@ -451,14 +624,12 @@ def close_ticket(
         ticket_id
     )
 
-    if ticket.status == "closed":
-        raise HTTPException(
-            status_code=400,
-            detail="El ticket ya está cerrado"
-        )
+    ensure_not_final(ticket)
+
     old_status = ticket.status
 
     ticket.status = "closed"
+    ticket.closed_at = datetime.utcnow()
 
     db.commit()
     db.refresh(ticket)
@@ -475,27 +646,65 @@ def close_ticket(
     notify_ticket(
         db, ticket,
         subject="Cerrado",
-        message=f"El ticket #{ticket.id} fue cerrado."
+        message=(
+            f"El ticket #{ticket.id} fue cerrado.\n\n"
+            f"Entra al sistema para calificar la atención (encuesta obligatoria). "
+            f"Si no respondes en {FEEDBACK_HOURS} horas, se registrará con 5 estrellas."
+        ),
+        actor=current_user
     )
 
     return build_ticket_response(ticket)
 
-def delete_ticket(
+
+# Los tickets no se borran (auditoría): se cancelan con un motivo
+def cancel_ticket(
         db: Session,
-        ticket_id: int
+        ticket_id: int,
+        reason: str,
+        current_user=None
 ):
     ticket = find_ticket_by_id(
         db,
         ticket_id
     )
 
-    db.delete(ticket)
-    db.commit()
+    ensure_ticket_access(ticket, current_user)
+    ensure_not_final(ticket)
 
-    return {
-        "message": "Ticket eliminado correctamente",
-        "ticket_id": ticket_id
-    }
+    if ticket.status not in CANCELLABLE_STATUSES:
+        raise HTTPException(
+            status_code=400,
+            detail="Un ticket resuelto ya no se puede cancelar"
+        )
+
+    old_status = ticket.status
+
+    ticket.status = "cancelled"
+    ticket.cancel_reason = reason
+    ticket.resolved_at = None
+
+    db.commit()
+    db.refresh(ticket)
+
+    create_history(
+        db=db,
+        ticket_id=ticket.id,
+        user_id=current_user.id if current_user else None,
+        action="CANCEL",
+        old_value=old_status,
+        new_value=reason
+    )
+
+    who = current_user.name if current_user else "Sistema"
+    notify_ticket(
+        db, ticket,
+        subject="Cancelado",
+        message=f"{who} canceló el ticket #{ticket.id}.\n\nMotivo: {reason}",
+        actor=current_user
+    )
+
+    return build_ticket_response(ticket)
 
 
 def change_ticket_status(
@@ -517,11 +726,7 @@ def change_ticket_status(
             detail="Estado inválido"
         )
 
-    if ticket.status == "closed":
-        raise HTTPException(
-            status_code=400,
-            detail="El ticket ya está cerrado"
-        )
+    ensure_not_final(ticket)
 
     if ticket.assigned_to_user_id is None:
         raise HTTPException(
@@ -537,8 +742,14 @@ def change_ticket_status(
             detail=f"No se puede cambiar de {ticket.status} a {new_status}"
         )
 
+    # Cerrar tiene su propio flujo (fecha de cierre, encuesta)
+    if new_status == "closed":
+        return close_ticket(db, ticket_id, current_user)
+
     old_status = ticket.status
     ticket.status = new_status
+    # Al resolverse empiezan a correr las 24 h para que el usuario confirme
+    ticket.resolved_at = datetime.utcnow() if new_status == "resolved" else None
 
     db.commit()
     db.refresh(ticket)
@@ -552,10 +763,18 @@ def change_ticket_status(
         new_value=new_status
     )
     new_label = STATUS_LABELS.get(new_status, new_status)
+    message = f"El estado del ticket #{ticket.id} cambió a: {new_label}."
+    if new_status == "resolved":
+        message += (
+            f"\n\nEntra al sistema para confirmar si quedó solucionado y calificar la atención. "
+            f"Si no respondes en {FEEDBACK_HOURS} horas, el ticket se cerrará automáticamente "
+            f"y la encuesta se registrará con 5 estrellas."
+        )
     notify_ticket(
         db, ticket,
         subject=f"Estado: {new_label}",
-        message=f"El estado del ticket #{ticket.id} cambió a: {new_label}."
+        message=message,
+        actor=current_user
     )
 
     return build_ticket_response(ticket)
@@ -573,10 +792,10 @@ def upload_attachment(
 
     ensure_ticket_access(ticket, current_user)
 
-    if ticket.status == "closed":
+    if ticket.status in FINAL_STATUSES:
         raise HTTPException(
             status_code=400,
-            detail="No se puede adjuntar archivos a un ticket cerrado"
+            detail="No se pueden adjuntar archivos a un ticket cerrado o cancelado"
         )
 
     extension = os.path.splitext(file.filename)[1].lower()

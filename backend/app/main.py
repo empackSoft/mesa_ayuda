@@ -18,6 +18,12 @@ from models.location import Location
 from routers.locationRouter import router as location_router
 from models.notifyGroup import NotifyGroup
 from routers.notifyGroupRouter import router as notify_group_router
+from models.ticketSurvey import TicketSurvey
+from models.notification import Notification
+from models.passwordResetToken import PasswordResetToken
+from routers.notificationRouter import router as notification_router
+from security.jwt import SECRET_KEY
+from services.scheduledJobs import start_scheduler, stop_scheduler
 
 
 
@@ -71,6 +77,13 @@ with engine.begin() as connection:
     connection.execute(text("ALTER TABLE locations ALTER COLUMN code DROP NOT NULL"))
     connection.execute(text(
         "ALTER TABLE tickets ADD COLUMN IF NOT EXISTS location_id INTEGER REFERENCES locations(id)"
+    ))
+    # Confirmación/encuesta y cancelación (los tickets anteriores quedan en NULL: no piden encuesta)
+    connection.execute(text("ALTER TABLE tickets ADD COLUMN IF NOT EXISTS resolved_at TIMESTAMP"))
+    connection.execute(text("ALTER TABLE tickets ADD COLUMN IF NOT EXISTS closed_at TIMESTAMP"))
+    connection.execute(text("ALTER TABLE tickets ADD COLUMN IF NOT EXISTS cancel_reason TEXT"))
+    connection.execute(text(
+        "ALTER TABLE notifications ADD COLUMN IF NOT EXISTS kind VARCHAR(30) NOT NULL DEFAULT 'ticket_update'"
     ))
     connection.execute(text("""
         DO $$
@@ -129,6 +142,21 @@ app.include_router(auth_router,prefix=API_PREFIX)
 app.include_router(dashboard_router,prefix=API_PREFIX)
 app.include_router(location_router,prefix=API_PREFIX)
 app.include_router(notify_group_router,prefix=API_PREFIX)
+app.include_router(notification_router,prefix=API_PREFIX)
+
+
+# Cierre automático de tickets resueltos sin respuesta y limpieza de avisos viejos
+@app.on_event("startup")
+def on_startup():
+    if SECRET_KEY == "CHANGE_THIS_SECRET_KEY":
+        print("[SEGURIDAD] JWT_SECRET_KEY no está en el .env: cualquiera podría falsificar sesiones. "
+              "Agrega una clave larga y aleatoria.")
+    start_scheduler()
+
+
+@app.on_event("shutdown")
+def on_shutdown():
+    stop_scheduler()
 
 @app.get("/health")
 def health():

@@ -54,6 +54,13 @@ class Ticket(Base):
         onupdate=datetime.utcnow
     )
 
+    # Cuándo pasó a resuelto/cerrado (desde ahí corren las 24 h para confirmar y calificar).
+    # Los tickets importados no los tienen: a esos no se les pide encuesta.
+    resolved_at = Column(DateTime, nullable=True)
+    closed_at = Column(DateTime, nullable=True)
+
+    cancel_reason = Column(Text, nullable=True)
+
     incidencia = relationship("Incidencia")
     location = relationship("Location")
     subincidencia = relationship("Subincidencia")
@@ -79,3 +86,14 @@ class Ticket(Base):
         back_populates="ticket",
         cascade="all, delete-orphan"
     )
+
+    survey = relationship(
+        "TicketSurvey",
+        back_populates="ticket",
+        uselist=False
+    )
+
+# Modelos a los que apuntan las relaciones de Ticket por nombre: se registran aquí
+# para que los scripts que solo importan Ticket no fallen al configurar el mapper.
+from models.location import Location  # noqa: E402,F401
+from models.ticketSurvey import TicketSurvey  # noqa: E402,F401

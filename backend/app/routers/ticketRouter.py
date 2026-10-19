@@ -21,7 +21,11 @@ from schemas.ticket import (
     TicketCreate,
     TicketUpdate,
     TicketAssign,
-    TicketResponse
+    TicketResponse,
+    TicketPage,
+    TicketCancel,
+    TicketSurveyCreate,
+    TicketReopen
 )
 
 from services.ticketService import (
@@ -30,7 +34,7 @@ from services.ticketService import (
     get_ticket_by_id,
     update_ticket,
     close_ticket,
-    delete_ticket,
+    cancel_ticket,
     assign_ticket,
     upload_attachment,
     get_attachment,
@@ -46,6 +50,12 @@ from schemas.ticketComment import (
 from services.ticketCommentService import (
     create_comment,
     list_comments
+)
+
+from services.ticketFeedbackService import (
+    submit_survey,
+    reopen_ticket,
+    get_pending_feedback
 )
 
 
@@ -73,7 +83,7 @@ def create_new_ticket(
 
 @router.get(
     "/",
-    response_model=list[TicketResponse]
+    response_model=TicketPage
 )
 def list_tickets(
         status: Optional[str] = None,
@@ -82,6 +92,12 @@ def list_tickets(
         subincidencia_id: Optional[int] = None,
         created_from: Optional[datetime] = None,
         created_to: Optional[datetime] = None,
+        q: Optional[str] = None,
+        assigned_to_me: bool = False,
+        page: int = 1,
+        page_size: int = 25,
+        sort_by: str = "id",
+        sort_desc: bool = True,
         db: Session = Depends(get_db),
         current_user: User = Depends(require_user_or_above)
 ):
@@ -93,8 +109,26 @@ def list_tickets(
         subincidencia_id=subincidencia_id,
         created_from=created_from,
         created_to=created_to,
+        q=q,
+        assigned_to_me=assigned_to_me,
+        page=page,
+        page_size=page_size,
+        sort_by=sort_by,
+        sort_desc=sort_desc,
         current_user=current_user
     )
+
+
+# Tickets propios que esperan confirmación o encuesta (va antes de /{ticket_id})
+@router.get(
+    "/pending-feedback",
+    response_model=list[TicketResponse]
+)
+def list_pending_feedback(
+        db: Session = Depends(get_db),
+        current_user: User = Depends(require_user_or_above)
+):
+    return get_pending_feedback(db, current_user)
 
 @router.get(
     "/{ticket_id}",
@@ -144,15 +178,62 @@ def close_existing_ticket(
     )
 
 
-@router.delete("/{ticket_id}")
-def delete_existing_ticket(
+# Los tickets no se borran (auditoría). Soporte cancela cualquiera;
+# el usuario solo los suyos y mientras no estén resueltos.
+@router.patch(
+    "/{ticket_id}/cancel",
+    response_model=TicketResponse
+)
+def cancel_existing_ticket(
         ticket_id: int,
+        data: TicketCancel,
         db: Session = Depends(get_db),
-        current_user: User = Depends(require_admin)
+        current_user: User = Depends(require_user_or_above)
 ):
-    return delete_ticket(
+    return cancel_ticket(
         db,
-        ticket_id
+        ticket_id,
+        data.reason,
+        current_user
+    )
+
+
+# El solicitante confirma la solución (si está resuelto) y califica la atención
+@router.post(
+    "/{ticket_id}/survey",
+    response_model=TicketResponse
+)
+def answer_ticket_survey(
+        ticket_id: int,
+        data: TicketSurveyCreate,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(require_user_or_above)
+):
+    return submit_survey(
+        db,
+        ticket_id,
+        data.rating,
+        data.comment,
+        current_user
+    )
+
+
+# El solicitante indica que el problema sigue: regresa a En progreso
+@router.post(
+    "/{ticket_id}/reopen",
+    response_model=TicketResponse
+)
+def reopen_resolved_ticket(
+        ticket_id: int,
+        data: TicketReopen,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(require_user_or_above)
+):
+    return reopen_ticket(
+        db,
+        ticket_id,
+        data.reason,
+        current_user
     )
 
 @router.patch(

@@ -2,17 +2,21 @@ from pydantic import BaseModel, Field
 from typing import Optional
 from datetime import datetime
 
+# Mismo límite que MAX_TEXT en el front (utils/labels.js)
+MAX_TEXT = 10000
+
+
 class TicketCreate(BaseModel):
     incidencia_id: int = Field(..., gt=0)
     subincidencia_id: int = Field(..., gt=0)
-    description: str = Field(..., min_length=5)
+    description: str = Field(..., min_length=5, max_length=MAX_TEXT)
 
 
 # El estado NO se cambia aquí: va por /status, /close o /cancel (respetan el flujo)
 class TicketUpdate(BaseModel):
     incidencia_id: Optional[int] = Field(None, gt=0)
     subincidencia_id: Optional[int] = Field(None, gt=0)
-    description: Optional[str] = Field(None, min_length=5)
+    description: Optional[str] = Field(None, min_length=5, max_length=MAX_TEXT)
     priority: Optional[str] = None
 
 

@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from passlib.context import CryptContext
 from fastapi import HTTPException
 
@@ -26,3 +28,12 @@ def verify_password(
         plain_password,
         hashed_password
     )
+
+
+def set_user_password(user, password: str):
+    """
+    Única forma de cambiar una contraseña: guarda el hash y la fecha del cambio.
+    Las sesiones emitidas antes de esa fecha dejan de valer (ver dependencies/auth.py).
+    """
+    user.password_hash = hash_password(password)
+    user.password_changed_at = datetime.utcnow()

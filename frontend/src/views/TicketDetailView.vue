@@ -234,7 +234,7 @@ watch(ticketId, load, { immediate: true })
         ? 'Esperando que el solicitante confirme la solución.'
         : 'Esperando la calificación del solicitante.' }}
       Si no responde, se {{ ticket.feedback_state === 'confirm' ? 'cerrará' : 'calificará' }}
-      automáticamente con 5 estrellas el {{ formatDateTime(ticket.feedback_due_at) }}.
+      automáticamente con 5 estrellas el {{ formatDateTime(ticket.feedback_due_at) }}
     </v-alert>
 
     <v-row>
@@ -448,6 +448,7 @@ watch(ticketId, load, { immediate: true })
         <v-textarea
           v-model="cancelReason"
           placeholder="Ej. se resolvió solo, se levantó por error, ticket duplicado…"
+          maxlength="1000"
           rows="3"
           auto-grow
           :rules="[(v) => (v ?? '').trim().length >= 5 || 'Mínimo 5 caracteres']"

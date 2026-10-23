@@ -4,7 +4,7 @@ import { errorMessage } from '../api/http'
 import { ticketsApi } from '../api/tickets'
 import { useAuthStore } from '../stores/auth'
 import { formatDateTime, initials, timeAgo } from '../utils/format'
-import { ROLE_LABELS, isFinal, label } from '../utils/labels'
+import { MAX_TEXT, ROLE_LABELS, isFinal, label } from '../utils/labels'
 
 const props = defineProps({
   ticket: { type: Object, required: true },
@@ -129,6 +129,7 @@ defineExpose({ load })
         rows="3"
         auto-grow
         max-rows="12"
+        :maxlength="MAX_TEXT"
         hide-details
         :class="{ 'composer--internal': internal }"
         @keydown.ctrl.enter.prevent="send"

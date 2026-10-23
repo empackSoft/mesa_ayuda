@@ -117,6 +117,7 @@ async function send(action, kind) {
       <v-textarea
         v-model="comment"
         placeholder="Comentario (opcional)"
+        maxlength="2000"
         rows="2"
         auto-grow
         max-rows="6"
@@ -134,6 +135,7 @@ async function send(action, kind) {
       <v-textarea
         v-model="reason"
         placeholder="Describe qué no quedó resuelto"
+        maxlength="2000"
         rows="3"
         auto-grow
         hide-details

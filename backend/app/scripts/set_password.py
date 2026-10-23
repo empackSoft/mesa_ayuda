@@ -20,7 +20,7 @@ from sqlalchemy import func  # noqa: E402
 
 from database import SessionLocal  # noqa: E402
 from models.user import User  # noqa: E402
-from security.password import hash_password  # noqa: E402
+from security.password import hash_password, set_user_password  # noqa: E402
 
 # Se importan para que SQLAlchemy resuelva todas las relaciones
 import models.location  # noqa: E402,F401
@@ -69,7 +69,7 @@ def run():
             db.add(user)
             print(f"Admin creado: {email}")
         else:
-            user.password_hash = hash_password(password)
+            set_user_password(user, password)
             user.is_active = True
             print(f"Contraseña actualizada: {email} (rol {user.role})")
         db.commit()

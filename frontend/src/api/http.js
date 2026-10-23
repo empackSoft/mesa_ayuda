@@ -1,21 +1,16 @@
 import axios from 'axios'
 
-export const TOKEN_KEY = 'mesa_token'
-
+// La sesión viaja en una cookie httpOnly que pone el backend al iniciar sesión:
+// el frontend nunca ve ni guarda el token (un XSS no podría robarlo).
 const http = axios.create({
   baseURL: '/mesa_ayuda/api',
   timeout: 20000,
+  withCredentials: true,
+  // El backend exige este encabezado en peticiones que modifican algo (protección CSRF)
+  headers: { 'X-Requested-With': 'XMLHttpRequest' },
 })
 
-http.interceptors.request.use((config) => {
-  const token = localStorage.getItem(TOKEN_KEY)
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`
-  }
-  return config
-})
-
-// Si el token venció o es inválido, se avisa a la app para cerrar sesión
+// Si la sesión venció o es inválida, se avisa a la app para cerrar sesión
 let onUnauthorized = null
 
 export function setUnauthorizedHandler(handler) {
@@ -25,8 +20,9 @@ export function setUnauthorizedHandler(handler) {
 http.interceptors.response.use(
   (response) => response,
   (error) => {
-    const isLogin = error.config?.url?.includes('/auth/login')
-    if (error.response?.status === 401 && !isLogin && onUnauthorized) {
+    const url = error.config?.url ?? ''
+    const isAuthCall = url.includes('/auth/login') || url.includes('/auth/me')
+    if (error.response?.status === 401 && !isAuthCall && onUnauthorized) {
       onUnauthorized()
     }
     return Promise.reject(error)

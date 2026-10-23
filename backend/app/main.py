@@ -85,6 +85,7 @@ with engine.begin() as connection:
     connection.execute(text(
         "ALTER TABLE notifications ADD COLUMN IF NOT EXISTS kind VARCHAR(30) NOT NULL DEFAULT 'ticket_update'"
     ))
+    connection.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS password_changed_at TIMESTAMP"))
     connection.execute(text("""
         DO $$
         BEGIN

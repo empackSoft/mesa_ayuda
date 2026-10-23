@@ -53,8 +53,8 @@ const rules = {
   required: (v) => !!(v ?? '').trim() || 'Campo obligatorio',
   name: (v) => (v ?? '').trim().length >= 2 || 'Mínimo 2 caracteres',
   email: (v) => /.+@.+\..+/.test(v ?? '') || 'Correo no válido',
-  password: (v) => !v || v.length >= 6 || 'Mínimo 6 caracteres',
-  passwordRequired: (v) => (v ?? '').length >= 6 || 'Mínimo 6 caracteres',
+  password: (v) => !v || v.length >= 8 || 'Mínimo 8 caracteres',
+  passwordRequired: (v) => (v ?? '').length >= 8 || 'Mínimo 8 caracteres',
 }
 
 function notify(text, color = 'success') {
@@ -323,7 +323,7 @@ async function save() {
             :append-inner-icon="showPassword ? 'eye-off' : 'eye'"
             :rules="[editing ? rules.password : rules.passwordRequired]"
             :placeholder="editing ? 'Déjala vacía para no cambiarla' : ''"
-            hint="Mínimo 6 caracteres."
+            hint="Mínimo 8 caracteres."
             persistent-hint
             autocomplete="new-password"
             class="mb-3"

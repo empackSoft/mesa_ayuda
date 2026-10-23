@@ -4,7 +4,7 @@ from typing import Optional
 
 
 class TicketCommentCreate(BaseModel):
-    body: str = Field(..., min_length=1)
+    body: str = Field(..., min_length=1, max_length=10000)
     is_internal: bool = False
 
 

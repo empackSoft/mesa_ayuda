@@ -6,7 +6,7 @@ from datetime import datetime
 class UserCreate(BaseModel):
     name: str = Field(..., min_length=2, max_length=150)
     email: EmailStr
-    password: str = Field(..., min_length=6)
+    password: str = Field(..., min_length=8, max_length=72)
     role: str = Field(default="user")
     location_id: Optional[int] = None
 
@@ -14,7 +14,7 @@ class UserCreate(BaseModel):
 class UserUpdate(BaseModel):
     name: Optional[str] = Field(None, min_length=2, max_length=150)
     email: Optional[EmailStr] = None
-    password: Optional[str] = Field(None, min_length=6)
+    password: Optional[str] = Field(None, min_length=8, max_length=72)
     role: Optional[str] = None
     location_id: Optional[int] = None
     is_active: Optional[bool] = None

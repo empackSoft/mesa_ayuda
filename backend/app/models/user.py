@@ -14,6 +14,9 @@ class User(Base):
 
     password_hash = Column(String(255), nullable=False)
 
+    # Último cambio de contraseña: las sesiones emitidas antes dejan de valer
+    password_changed_at = Column(DateTime, nullable=True)
+
     role = Column(String(50), nullable=False, default="user")
 
     # Ubicación del usuario; sus tickets se registran con ella

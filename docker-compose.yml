@@ -27,24 +27,22 @@ services:
       - internal
     volumes:
       - ./backend/app/uploads:/app/uploads
-    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+    # UVICORN_FLAGS en el .env: "--reload" solo en Local; en el VPS se deja vacío
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 ${UVICORN_FLAGS:-}
 
   postgres:
     image: postgres:15-alpine
     container_name: postgres
     restart: always
+    # Usuario, contraseña y base salen del .env (POSTGRES_USER / POSTGRES_PASSWORD / POSTGRES_DB)
     env_file:
       - .env
-    environment:
-      - POSTGRES_USER=admin_mesa
-      - POSTGRES_PASSWORD=3MtmNv43A3
-      - POSTGRES_DB=mesa_db
     ports:
       - "127.0.0.1:5432:5432"
     volumes:
       - vol_mesa_final:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U admin_mesa -d mesa_db"]
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 5s
       timeout: 5s
       retries: 10

@@ -1,7 +1,8 @@
-from datetime import datetime, timedelta
-from jose import jwt, JWTError
-from fastapi import HTTPException, status
+from datetime import datetime, timedelta, timezone
 import os
+
+import jwt
+from fastapi import HTTPException, status
 
 
 SECRET_KEY = os.getenv(
@@ -22,34 +23,32 @@ ACCESS_TOKEN_EXPIRE_MINUTES = int(
 def create_access_token(data: dict):
     to_encode = data.copy()
 
-    expire = datetime.utcnow() + timedelta(
-        minutes=ACCESS_TOKEN_EXPIRE_MINUTES
-    )
+    now = datetime.now(timezone.utc)
 
+    # iat: con él se invalidan las sesiones emitidas antes de un cambio de contraseña
     to_encode.update({
-        "exp": expire
+        "iat": now,
+        "exp": now + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     })
 
-    encoded_jwt = jwt.encode(
+    return jwt.encode(
         to_encode,
         SECRET_KEY,
         algorithm=ALGORITHM
     )
 
-    return encoded_jwt
-
 
 def decode_access_token(token: str):
     try:
-        payload = jwt.decode(
+        # algorithms fijo: rechaza tokens sin firma (alg=none) o con otro algoritmo
+        return jwt.decode(
             token,
             SECRET_KEY,
-            algorithms=[ALGORITHM]
+            algorithms=[ALGORITHM],
+            options={"require": ["exp", "iat", "sub"]}
         )
 
-        return payload
-
-    except JWTError:
+    except jwt.PyJWTError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Token inválido o expirado"

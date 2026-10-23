@@ -10,7 +10,7 @@ from models.user import User
 from models.passwordResetToken import PasswordResetToken
 from schemas.auth import LoginRequest
 from security import rateLimit
-from security.password import verify_password, hash_password
+from security.password import verify_password, hash_password, set_user_password
 from security.jwt import create_access_token
 from services.emailService import send_email, FRONTEND_URL, FAKE_EMAIL_SUFFIX
 
@@ -81,20 +81,22 @@ def login_user(
 
     rateLimit.reset(email_key)
 
-    access_token = create_access_token({
-        "sub": str(user.id),
-        "email": user.email,
-        "role": user.role
-    })
-
     return {
-        "access_token": access_token,
+        "access_token": issue_token(user),
         "token_type": "bearer",
         "user_id": user.id,
         "name": user.name,
         "email": user.email,
         "role": user.role
     }
+
+
+def issue_token(user: User) -> str:
+    return create_access_token({
+        "sub": str(user.id),
+        "email": user.email,
+        "role": user.role
+    })
 
 
 def change_own_password(
@@ -120,10 +122,14 @@ def change_own_password(
         )
 
     rateLimit.reset(key)
-    current_user.password_hash = hash_password(new_password)
+    set_user_password(current_user, new_password)
     db.commit()
 
-    return {"message": "Contraseña actualizada"}
+    # Las demás sesiones se cierran; esta recibe un token nuevo para seguir trabajando
+    return {
+        "message": "Contraseña actualizada",
+        "access_token": issue_token(current_user)
+    }
 
 
 def _hash_token(token: str) -> str:
@@ -195,7 +201,7 @@ def reset_password(db: Session, token: str, new_password: str):
             detail="El link no es válido o ya venció. Solicita uno nuevo."
         )
 
-    user.password_hash = hash_password(new_password)
+    set_user_password(user, new_password)
 
     # El link es de un solo uso; también se invalidan los demás pendientes de esa cuenta
     now = datetime.utcnow()

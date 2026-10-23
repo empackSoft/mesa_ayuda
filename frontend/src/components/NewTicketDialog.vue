@@ -1,14 +1,16 @@
 <script setup>
-import { ref, watch } from 'vue'
+import { nextTick, ref, watch } from 'vue'
 import { errorMessage } from '../api/http'
 import { catalogApi, ticketsApi } from '../api/tickets'
 import { formatBytes } from '../utils/format'
+import { MAX_TEXT } from '../utils/labels'
 import FileDropzone from './FileDropzone.vue'
 
 const open = defineModel({ type: Boolean, default: false })
 const emit = defineEmits(['created'])
 
 const form = ref(null)
+const subSelect = ref(null)
 const incidencias = ref([])
 const subincidencias = ref([])
 const incidenciaId = ref(null)
@@ -60,6 +62,9 @@ watch(open, (value) => {
 watch(incidenciaId, async (id) => {
   subincidenciaId.value = null
   subincidencias.value = []
+  // Al cambiar de categoría la subcategoría se vacía: sin esto se quedaba "Campo obligatorio"
+  await nextTick()
+  subSelect.value?.resetValidation()
   if (!id) return
   loadingSubs.value = true
   try {
@@ -148,6 +153,7 @@ async function submit() {
             <v-col cols="12" sm="6">
               <label class="field-label">Subcategoría</label>
               <v-select
+                ref="subSelect"
                 v-model="subincidenciaId"
                 :items="subincidencias"
                 item-title="name"
@@ -167,6 +173,8 @@ async function submit() {
             placeholder="¿Qué está pasando? Incluye lo que intentabas hacer y el mensaje de error si lo hay."
             rows="4"
             auto-grow
+            :maxlength="MAX_TEXT"
+            :counter="description.length > MAX_TEXT * 0.8 ? MAX_TEXT : undefined"
             :rules="[rules.minLength]"
           />
 

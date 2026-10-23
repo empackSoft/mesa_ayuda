@@ -7,5 +7,5 @@ redis
 passlib==1.7.4
 bcrypt==4.0.1
 email-validator
-python-jose[cryptography]
-python-multipart==0.0.20
+PyJWT>=2.10,<3
+python-multipart>=0.0.31,<0.1

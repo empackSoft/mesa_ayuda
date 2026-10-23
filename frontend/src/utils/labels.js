@@ -130,3 +130,6 @@ export const ALLOWED_EXTENSIONS = [
   '.png', '.jpg', '.jpeg', '.pdf', '.doc', '.docx', '.xls', '.xlsx', '.txt', '.zip',
 ]
 export const MAX_FILE_SIZE = 10 * 1024 * 1024
+
+// Mismo límite que MAX_TEXT en schemas/ticket.py (descripción y comentarios)
+export const MAX_TEXT = 10000

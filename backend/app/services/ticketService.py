@@ -40,6 +40,28 @@ ALLOWED_EXTENSIONS = {
 
 MAX_FILE_SIZE = 10 * 1024 * 1024
 
+# Firma (primeros bytes) que debe tener cada tipo: no basta con la extensión del nombre
+ZIP_SIGNATURE = b"PK\x03\x04"  # .zip y Office moderno (.docx, .xlsx)
+OLE_SIGNATURE = b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1"  # Office 97-2003 (.doc, .xls)
+FILE_SIGNATURES = {
+    ".png": [b"\x89PNG\r\n\x1a\n"],
+    ".jpg": [b"\xff\xd8\xff"],
+    ".jpeg": [b"\xff\xd8\xff"],
+    ".pdf": [b"%PDF-"],
+    ".zip": [ZIP_SIGNATURE, b"PK\x05\x06"],
+    ".docx": [ZIP_SIGNATURE],
+    ".xlsx": [ZIP_SIGNATURE],
+    ".doc": [OLE_SIGNATURE],
+    ".xls": [OLE_SIGNATURE],
+}
+
+
+def content_matches_extension(extension: str, contents: bytes) -> bool:
+    if extension == ".txt":
+        # Texto plano: sin bytes nulos
+        return b"\x00" not in contents[:8192]
+    return any(contents.startswith(sig) for sig in FILE_SIGNATURES.get(extension, []))
+
 VALID_STATUS = [
     "open",
     "in_progress",
@@ -818,6 +840,12 @@ def upload_attachment(
         raise HTTPException(
             status_code=400,
             detail="El archivo excede el tamaño máximo permitido (10 MB)"
+        )
+
+    if not content_matches_extension(extension, contents):
+        raise HTTPException(
+            status_code=400,
+            detail="El contenido del archivo no corresponde a su tipo"
         )
 
     unique_name = f"{uuid.uuid4()}{extension}"

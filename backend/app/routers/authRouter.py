@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Request, Response
 from sqlalchemy.orm import Session
 
 from dependencies.database import get_db
@@ -17,7 +17,7 @@ from services.authService import (
     request_password_reset,
     reset_password
 )
-from dependencies.auth import get_current_user
+from dependencies.auth import get_current_user, set_session_cookie, clear_session_cookie
 from models.user import User
 
 
@@ -28,10 +28,8 @@ router = APIRouter(
 
 
 def client_ip(request: Request):
-    # Detrás de Apache + nginx: la IP real viene en X-Forwarded-For (la primera)
-    forwarded = request.headers.get("x-forwarded-for")
-    if forwarded:
-        return forwarded.split(",")[0].strip()
+    # nginx calcula la IP real (real_ip desde el proxy de confianza) y la manda en X-Real-IP,
+    # reemplazando lo que traiga el cliente: no se puede falsificar con X-Forwarded-For
     return request.headers.get("x-real-ip") or (request.client.host if request.client else None)
 
 
@@ -42,13 +40,22 @@ def client_ip(request: Request):
 def login(
         login_data: LoginRequest,
         request: Request,
+        response: Response,
         db: Session = Depends(get_db)
 ):
-    return login_user(
+    result = login_user(
         db,
         login_data,
         client_ip(request)
     )
+    set_session_cookie(response, result["access_token"])
+    return result
+
+
+@router.post("/logout")
+def logout(response: Response):
+    clear_session_cookie(response)
+    return {"message": "Sesión cerrada"}
 
 
 @router.get("/me")
@@ -66,15 +73,18 @@ def me(
 @router.put("/password")
 def change_password(
         data: ChangePasswordRequest,
+        response: Response,
         db: Session = Depends(get_db),
         current_user: User = Depends(get_current_user)
 ):
-    return change_own_password(
+    result = change_own_password(
         db,
         current_user,
         data.current_password,
         data.new_password
     )
+    set_session_cookie(response, result["access_token"])
+    return result
 
 
 @router.post("/forgot-password")

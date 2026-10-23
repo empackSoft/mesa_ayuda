@@ -83,6 +83,7 @@ const ICONS = {
   'square-check': SquareCheck,
   'square-minus': SquareMinus,
   star: Star,
+  'star-filled': Star,
   'star-half': StarHalf,
   ticket: Ticket,
   'trending-down': TrendingDown,
@@ -94,6 +95,9 @@ const ICONS = {
   x: X,
 }
 
+// Iconos que se pintan rellenos (ej. la estrella elegida en una calificación)
+const FILLED = new Set(['star-filled'])
+
 // Componente que Vuetify usa para pintar cada icono del set "lucide"
 const LucideIcon = {
   name: 'LucideIcon',
@@ -102,7 +106,8 @@ const LucideIcon = {
     return () => {
       const Icon = ICONS[props.icon]
       if (!Icon && import.meta.env.DEV) console.warn(`[icons] Icono no registrado: ${props.icon}`)
-      return h(props.tag, null, Icon ? [h(Icon, { size: '1em', strokeWidth: 1.75 })] : [])
+      const fill = FILLED.has(props.icon) ? 'currentColor' : 'none'
+      return h(props.tag, null, Icon ? [h(Icon, { size: '1em', strokeWidth: 1.75, fill })] : [])
     }
   },
 }
@@ -135,7 +140,7 @@ const aliases = {
   radioOff: 'circle',
   edit: 'pencil',
   ratingEmpty: 'star',
-  ratingFull: 'star',
+  ratingFull: 'star-filled',
   ratingHalf: 'star-half',
   loading: 'loader',
   first: 'chevrons-left',

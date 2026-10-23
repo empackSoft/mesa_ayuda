@@ -1,5 +1,5 @@
 from schemas.user import UserCreate, UserUpdate
-from security.password import hash_password
+from security.password import hash_password, set_user_password
 from sqlalchemy.orm import Session
 from fastapi import HTTPException
 from models.user import User
@@ -179,8 +179,7 @@ def update_user(
             )
 
     if "password" in data:
-        user.password_hash = hash_password(data["password"])
-        data.pop("password")
+        set_user_password(user, data.pop("password"))
 
     for field, value in data.items():
         setattr(user, field, value)

@@ -14,4 +14,5 @@ RUN npm run build
 FROM nginx:stable-alpine
 
 COPY nginx/default.conf /etc/nginx/conf.d/default.conf
+COPY nginx/security-headers.conf /etc/nginx/snippets/security-headers.conf
 COPY --from=build /frontend/dist /usr/share/nginx/html/mesa_ayuda

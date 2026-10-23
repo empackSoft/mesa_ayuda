@@ -1,5 +1,5 @@
 <script setup>
-import { onBeforeUnmount, onMounted, ref } from 'vue'
+import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { notificationsApi } from '../api/tickets'
 import { useFeedbackStore } from '../stores/feedback'
@@ -8,10 +8,12 @@ import {
   isMuted, needsActivation, playSound, requestSystemPermission, setMuted, showSystemNotification,
   systemPermission,
 } from '../utils/alerts'
+import { flashTab, setUnreadBadge } from '../utils/tabBadge'
 import NotificationToasts from './NotificationToasts.vue'
 
 // Campanita: revisa avisos cada 15 s. Con cada aviso nuevo suena, aparece una tarjeta
-// abajo a la derecha (30 s) y, si la pestaña está oculta, una notificación del sistema.
+// abajo a la derecha (30 s) y, si la pestaña está oculta, una notificación del sistema
+// y el título de la pestaña parpadea. Mientras haya sin leer, la pestaña muestra el contador.
 const POLL_MS = 15000
 const TOAST_MS = 30000
 const MAX_TOASTS = 3
@@ -107,6 +109,7 @@ async function announce(newOnes) {
     if (!activationSkipped.value) askActivation.value = needsActivation()
   }
   newOnes.forEach((n) => showSystemNotification(n, () => goTo(n)))
+  flashTab()
 }
 
 async function poll() {
@@ -148,6 +151,8 @@ async function markAll() {
   await notificationsApi.markAllRead().catch(() => {})
 }
 
+watch(unread, setUnreadBadge)
+
 onMounted(() => {
   poll()
   pollTimer = setInterval(poll, POLL_MS)
@@ -156,6 +161,7 @@ onMounted(() => {
 onBeforeUnmount(() => {
   clearInterval(pollTimer)
   clearToasts()
+  setUnreadBadge(0)
 })
 </script>
 

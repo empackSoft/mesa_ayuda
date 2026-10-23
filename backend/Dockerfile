@@ -7,7 +7,9 @@ ENV PYTHONUNBUFFERED=1
 
 COPY requirements.txt .
 
-RUN pip install --no-cache-dir -r requirements.txt
+# pip y setuptools de la imagen base suelen traer vulnerabilidades conocidas
+RUN pip install --no-cache-dir --upgrade pip setuptools \
+    && pip install --no-cache-dir -r requirements.txt
 
 COPY ./app /app
 

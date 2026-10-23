@@ -1,9 +1,12 @@
 {
+  "id": "/mesa_ayuda/",
   "name": "Mesa de Ayuda EmPack",
   "short_name": "Mesa de Ayuda",
+  "description": "Tickets de soporte del Departamento de Sistemas de EmPack",
+  "lang": "es-MX",
   "start_url": "/mesa_ayuda/",
   "scope": "/mesa_ayuda/",
-  "display": "browser",
+  "display": "standalone",
   "background_color": "#F5F5F7",
   "theme_color": "#1B2A4A",
   "icons": [

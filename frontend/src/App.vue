@@ -2,6 +2,7 @@
 import { useRouter } from 'vue-router'
 import { setUnauthorizedHandler } from './api/http'
 import { USER_KEY, useAuthStore } from './stores/auth'
+import { applyUpdate, updateReady } from './utils/pwa'
 
 const router = useRouter()
 const auth = useAuthStore()
@@ -32,5 +33,19 @@ window.addEventListener('storage', (event) => {
 <template>
   <v-app>
     <RouterView />
+
+    <!-- Se publicó una versión nueva mientras la app estaba abierta -->
+    <v-snackbar
+      :model-value="updateReady"
+      location="bottom center"
+      timeout="-1"
+      color="primary"
+      rounded="pill"
+    >
+      Hay una versión nueva de Mesa de Ayuda
+      <template #actions>
+        <v-btn variant="text" @click="applyUpdate">Actualizar</v-btn>
+      </template>
+    </v-snackbar>
   </v-app>
 </template>

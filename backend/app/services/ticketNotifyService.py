@@ -2,6 +2,7 @@ from sqlalchemy.orm import Session
 
 from models.ticket import Ticket
 from services.emailService import send_email, build_ticket_link
+from services.emailTemplates import render_ticket_email
 from services.notificationService import create_notifications
 from services.notifyGroupService import ALWAYS_GROUP, get_group_emails, get_all_group_emails
 
@@ -51,32 +52,63 @@ def notify_ticket(
         include_creator: bool = True,
         actor=None,
         footer: str = None,
-        kind: str = "ticket_update"
+        kind: str = "ticket_update",
+        conversation: dict = None
 ):
+    """
+    conversation: en los avisos de comentario, el mensaje anterior y el nuevo
+    ({"older": bool, "messages": [...]}); reemplaza al detalle del ticket en el correo.
+    """
     creator = ticket.created_by
     to = [creator.email] if include_creator and creator and creator.email else []
     cc = staff_recipients(db, ticket)
 
+    # Ticket nuevo: va el detalle completo. Avisos sobre uno existente: solo lo que pasó.
+    is_new = kind == "new_ticket"
+
+    if conversation:
+        details = "Conversación:\n" + ("⋯\n" if conversation["older"] else "") + "".join(
+            f"\n{m['author']}{' (nuevo)' if m['is_new'] else ''}:\n{m['body']}\n"
+            for m in conversation["messages"]
+        ) + "\n"
+    else:
+        details = (
+            f"Ubicación: {ticket.location.name if ticket.location else '—'}\n"
+            f"Categoría: {ticket.incidencia.name if ticket.incidencia else '—'}"
+            f" / {ticket.subincidencia.name if ticket.subincidencia else '—'}\n"
+        )
+
     body = (
         f"{message}\n\n"
         f"Ticket: #{ticket.id}\n"
-        f"Levantado por: {creator.name if creator else '—'}\n"
-        f"Ubicación: {ticket.location.name if ticket.location else '—'}\n"
-        f"Categoría: {ticket.incidencia.name if ticket.incidencia else '—'}"
-        f" / {ticket.subincidencia.name if ticket.subincidencia else '—'}\n"
-        f"Asignado a: {ticket.assigned_to.name if ticket.assigned_to else 'Sin asignar'}\n"
+        + (f"Levantado por: {creator.name if creator else '—'}\n" if is_new else "")
+        + details
+        + f"Asignado a: {ticket.assigned_to.name if ticket.assigned_to else 'Sin asignar'}\n"
         f"Estado: {STATUS_LABELS.get(ticket.status, ticket.status)}\n\n"
-        f"Descripción:\n{ticket.description}\n\n"
-        f"Puedes verlo aquí: {build_ticket_link(ticket.id)}\n\n"
+        + (f"Descripción:\n{ticket.description}\n\n" if is_new else "")
+        + f"Puedes verlo aquí: {build_ticket_link(ticket.id)}\n\n"
         + (f"{footer}\n\n" if footer else "")
         + "Sistema Mesa de Ayuda EmPack"
+    )
+
+    html = render_ticket_email(
+        ticket,
+        title=subject,
+        message=message,
+        status_label=STATUS_LABELS.get(ticket.status, ticket.status),
+        link=build_ticket_link(ticket.id),
+        greeting_name=creator.name if to else None,
+        footer=footer,
+        is_new=is_new,
+        conversation=conversation
     )
 
     send_email(
         to=to,
         cc=cc,
         subject=f"Ticket #{ticket.id} · {subject}",
-        body=body
+        body=body,
+        html=html
     )
 
     # Campanita: quien hizo la acción no se avisa a sí mismo.
@@ -87,7 +119,8 @@ def notify_ticket(
         emails=to + cc,
         ticket_id=ticket.id,
         title=f"Ticket #{ticket.id} · {subject}",
-        body=message[:300],
+        # En un comentario, la campanita muestra el texto del mensaje nuevo
+        body=(conversation["messages"][-1]["body"] if conversation else message)[:300],
         exclude_user_id=actor.id if actor else None,
         kind=kind,
         include_all_staff=ticket.assigned_to_user_id is None

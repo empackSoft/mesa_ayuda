@@ -13,6 +13,7 @@ from security import rateLimit
 from security.password import verify_password, hash_password, set_user_password
 from security.jwt import create_access_token
 from services.emailService import send_email, FRONTEND_URL, FAKE_EMAIL_SUFFIX
+from services.emailTemplates import render_password_reset_email
 
 # Fuerza bruta: tras 5 intentos fallidos con el mismo correo (o 30 desde la misma IP)
 # en 15 minutos, se bloquea el login de ese correo/IP hasta que pase la ventana.
@@ -175,7 +176,8 @@ def request_password_reset(db: Session, email: str):
             f"{link}\n\n"
             f"Si no lo solicitaste, ignora este correo: tu contraseña no cambia.\n\n"
             f"Sistema Mesa de Ayuda EmPack"
-        )
+        ),
+        html=render_password_reset_email(user.name, link, RESET_TOKEN_MINUTES)
     )
 
     return response

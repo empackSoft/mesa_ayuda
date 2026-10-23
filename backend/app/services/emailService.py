@@ -1,6 +1,8 @@
 import smtplib
 import ssl
 import os
+from html import escape
+from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor
 from email.message import EmailMessage
 from email.utils import formatdate, make_msgid
@@ -18,6 +20,11 @@ NOTIFICATIONS_ENABLED = os.getenv("NOTIFICATIONS_ENABLED", "true").lower() == "t
 # Modo prueba: si tiene un correo, TODOS los avisos van solo ahí (sin importar el rol).
 # Vacío = producción: cada aviso va a sus destinatarios reales.
 EMAIL_TEST_RECIPIENT = os.getenv("EMAIL_TEST_RECIPIENT", "").strip()
+
+# Imágenes de las plantillas HTML: van incrustadas como adjuntos "cid:" y no como
+# data:base64, porque Gmail y Outlook bloquean las imágenes base64 dentro del HTML.
+EMAIL_IMAGES_DIR = Path(__file__).resolve().parent.parent / "static" / "email"
+EMAIL_IMAGES = ("logo", "firma", "mascota")
 
 # Direcciones que nunca existen (usuarios de prueba e importados sin correo real)
 FAKE_EMAIL_SUFFIX = "example.com"
@@ -42,9 +49,10 @@ def _clean(emails, exclude=()) -> list:
     return result
 
 
-def send_email(to, subject: str, body: str, cc=None):
+def send_email(to, subject: str, body: str, cc=None, html: str = None):
     """
     Encola UN correo best-effort (Para + CC) y regresa de inmediato.
+    body es la versión de texto plano; html, si viene, es la que muestran los clientes de correo.
     Si algo falla, lo registra y NO lanza excepción,
     para no interrumpir la operación principal.
     """
@@ -72,14 +80,44 @@ def send_email(to, subject: str, body: str, cc=None):
             f"CC: {', '.join(cc) or '—'}\n\n"
             f"{body}"
         )
+        if html:
+            banner = (
+                '<div style="background:#FFF4D6;padding:10px 16px;font-family:Arial,sans-serif;'
+                'font-size:12px;color:#7A5B00;">(Modo prueba: en producción este correo iría a) '
+                f"Para: {escape(', '.join(to))} · CC: {escape(', '.join(cc) or '—')}</div>"
+            )
+            html = _after_body(html, banner)
         print(f"[EMAIL] Modo prueba. En producción iría a Para: {to} CC: {cc}")
         subject = f"[PRUEBA] {subject}"
         to, cc = [EMAIL_TEST_RECIPIENT], []
 
-    _email_executor.submit(_deliver, to, cc, subject, body)
+    _email_executor.submit(_deliver, to, cc, subject, body, html)
 
 
-def _deliver(to: list, cc: list, subject: str, body: str):
+def _after_body(html: str, extra: str) -> str:
+    """Inserta extra justo después de la etiqueta <body ...>."""
+    start = html.find("<body")
+    end = html.find(">", start) + 1 if start != -1 else 0
+    return html[:end] + extra + html[end:]
+
+
+def _add_html(message: EmailMessage, html: str):
+    message.add_alternative(html, subtype="html", charset="utf-8")
+    html_part = message.get_payload()[-1]
+    for name in EMAIL_IMAGES:
+        if f"cid:{name}" not in html:
+            continue
+        path = EMAIL_IMAGES_DIR / f"{name}.png"
+        if not path.exists():
+            print(f"[EMAIL] Falta la imagen {path}")
+            continue
+        html_part.add_related(
+            path.read_bytes(), "image", "png",
+            cid=f"<{name}>", filename=f"{name}.png", disposition="inline"
+        )
+
+
+def _deliver(to: list, cc: list, subject: str, body: str, html: str = None):
     recipients = ", ".join(to + cc)
     try:
         message = EmailMessage()
@@ -91,6 +129,8 @@ def _deliver(to: list, cc: list, subject: str, body: str):
         message["Date"] = formatdate(localtime=True)
         message["Message-ID"] = make_msgid(domain=SMTP_FROM.split("@")[-1])
         message.set_content(body, charset="utf-8")
+        if html:
+            _add_html(message, html)
 
         raw_message = message.as_bytes()
 

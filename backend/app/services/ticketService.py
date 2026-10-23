@@ -253,8 +253,9 @@ def assign_ticket(
     )
     notify_ticket(
         db, ticket,
-        subject=f"Asignado a {assigned_user.name}",
-        message=f"El ticket #{ticket.id} se asignó a {assigned_user.name}.",
+        # Quién lo atiende ya va junto al estado en el correo; aquí no se repite
+        subject="Ticket asignado",
+        message=f"El ticket #{ticket.id} ya tiene quien lo atienda. Te avisaremos de cada avance.",
         actor=current_user
     )
 

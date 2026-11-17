@@ -46,6 +46,8 @@ def get_performance_by_technician(db: Session):
             func.count(Ticket.id)
         )
         .join(Ticket, Ticket.assigned_to_user_id == User.id)
+        # Los técnicos dados de baja no se muestran
+        .filter(User.is_active == True)  # noqa: E712
         .group_by(User.id, User.name, Ticket.status)
         .all()
     )
@@ -93,6 +95,7 @@ def _resolution_durations(db: Session):
             Ticket.priority,
             Ticket.assigned_to_user_id,
             User.name,
+            User.is_active,
             Ticket.created_at,
             first_resolved.c.resolved_at
         )
@@ -103,7 +106,11 @@ def _resolution_durations(db: Session):
 
     durations = []
 
-    for ticket_id, priority, tech_id, tech_name, created_at, resolved_at in rows:
+    for ticket_id, priority, tech_id, tech_name, tech_active, created_at, resolved_at in rows:
+        # De un técnico dado de baja el ticket cuenta en los promedios generales,
+        # pero no aparece con su nombre (tech_id None = no sale en la lista por técnico)
+        if tech_id is not None and not tech_active:
+            tech_id, tech_name = -1, None
         if created_at and resolved_at:
             # Normalizar ambas fechas a naive (sin zona horaria)
             if created_at.tzinfo is not None:
@@ -145,6 +152,8 @@ def get_resolution_times(db: Session):
     # Por técnico
     by_tech = {}
     for _, _, tech_id, tech_name, seconds in durations:
+        if tech_id == -1:
+            continue  # técnico dado de baja
         key = tech_id if tech_id is not None else 0
         if key not in by_tech:
             by_tech[key] = {

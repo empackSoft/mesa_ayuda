@@ -5,6 +5,7 @@ Uso (dentro del contenedor backend):
     python scripts/import_legacy.py /tmp/respaldo.sql            # importa
     python scripts/import_legacy.py /tmp/respaldo.sql --replace  # borra lo importado antes y vuelve a importar
     python scripts/import_legacy.py /tmp/respaldo.sql --real-emails
+    python scripts/import_legacy.py /tmp/respaldo.sql --real-emails --desde=2025-01-01  # solo desde esa fecha
 
 Por defecto los correos se cambian a @importado.example.com para que, al probar en local,
 ningún aviso llegue a personas reales. En producción usar --real-emails.
@@ -69,12 +70,12 @@ STATUS_MAP = {
 # Técnicos del sistema anterior: variantes del campo "asesor" -> (nombre, correo, activo)
 STAFF = {
     "hugo": ("Hugo Morgado", "sistemas@empack.com.mx", True),
-    "raul": ("Raúl Jaramillo", "raul_jaramillo@empack.com.mx", False),
+    "raul": ("Raúl Jaramillo", "raul_jaramillo@empack.com.mx", True),
     "ranulfo": ("Ranulfo Arroyo Delgado", None, False),
     "diego": ("Diego Fernández", "sistemas3@empack.com.mx", True),
     "rene": ("René Martínez", "sistemas5@empack.com.mx", True),
-    "fernando": ("Fernando Perdomo De la Cruz", "sistemas2@empack.com.mx", False),
-    "armando": ("Armando Hernández", "sistemas6@empack.com.mx", True),
+    "fernando": ("Fernando Perdomo De la Cruz", "sistemas2@empack.com.mx", True),
+    "armando": ("Armando Hernández", "sistemas6@empack.com.mx", False),
 }
 # Se busca la primera de estas claves dentro del texto (hay registros como "LSCA.HMH; RAD"
 # o "RAUL JARAMILLO RODIGUEZ"): el ticket se asigna al primero que aparece.
@@ -282,7 +283,9 @@ def delete_imported(db):
     return len(ids)
 
 
-def run(path, replace=False, real_emails=False):
+def run(path, replace=False, real_emails=False, since=None):
+    # since: fecha (hora de México) desde la que se importan tickets; los anteriores se omiten
+    since_utc = since + MX_OFFSET if since else None
     dump = load_dump(path)
     tickets_src = sorted(dump['ticket'], key=lambda r: r[T_ID])
     db = SessionLocal()
@@ -474,6 +477,9 @@ def run(path, replace=False, real_emails=False):
                 stats['sin_fecha_omitido'] += 1
                 continue
         last_created = created
+        if since_utc and created < since_utc:
+            stats['anterior_a_desde_omitido'] += 1
+            continue
 
         requester = get_requester(r)
         staff = get_staff(r[T_ASESOR])
@@ -582,4 +588,8 @@ if __name__ == '__main__':
     if len(sys.argv) < 2:
         print(__doc__)
         sys.exit(1)
-    run(sys.argv[1], replace='--replace' in sys.argv, real_emails='--real-emails' in sys.argv)
+    since = None
+    for arg in sys.argv[2:]:
+        if arg.startswith('--desde='):
+            since = datetime.strptime(arg.split('=', 1)[1], '%Y-%m-%d')
+    run(sys.argv[1], replace='--replace' in sys.argv, real_emails='--real-emails' in sys.argv, since=since)

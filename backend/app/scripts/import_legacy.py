@@ -9,6 +9,7 @@ Uso (dentro del contenedor backend):
 
 Por defecto los correos se cambian a @importado.example.com para que, al probar en local,
 ningún aviso llegue a personas reales. En producción usar --real-emails.
+Con --real-emails todos los correos quedan en @empack.com.mx (ver normalize_email).
 
 Qué se toma del sistema anterior:
 - ubicaciones / ubicación del ticket   -> locations (ubicaciones)
@@ -53,6 +54,7 @@ from security.password import hash_password  # noqa: E402
 
 IMPORT_MARK = "— Importado del sistema anterior"
 FAKE_DOMAIN = "importado.example.com"
+COMPANY_DOMAIN = "empack.com.mx"
 UTC_FROM_TICKET_ID = 3312
 MX_OFFSET = timedelta(hours=6)  # hora de México (UTC-6) -> UTC
 
@@ -136,11 +138,14 @@ CATEGORY_RULES = [
 
 # ---------------------------------------------------------------- lectura del dump
 
-def parse_values(text):
-    rows, row, i, n = [], None, 0, len(text)
+def parse_values(text, start=0):
+    """Filas de un INSERT ... VALUES (...), (...); desde `start`. Devuelve (filas, fin)."""
+    rows, row, i, n = [], None, start, len(text)
     while i < n:
         c = text[i]
         if row is None:
+            if c == ';':
+                return rows, i + 1
             if c == '(':
                 row = []
             i += 1
@@ -179,18 +184,27 @@ def parse_values(text):
         tok = m.group(0).strip()
         row.append(None if tok == 'NULL' else (int(tok) if re.fullmatch(r'-?\d+', tok) else tok))
         i += len(m.group(0))
-    return rows
+    return rows, n
+
+
+INSERT_RE = re.compile(r"^INSERT INTO `(\w+)`(?: \([^)]*\))? VALUES", re.M)
 
 
 def load_dump(path):
-    data = {}
+    """
+    Lee los INSERT del dump. Sirve para mysqldump (todo el INSERT en una línea, sin columnas)
+    y para phpMyAdmin (con lista de columnas y una fila por línea). Ambos con el mismo orden
+    de columnas que las tablas del sistema anterior.
+    """
     with io.open(path, encoding='utf-8', errors='replace') as f:
-        for line in f:
-            if line.startswith('INSERT INTO `'):
-                table = line[13:line.index('`', 13)]
-                values = line[line.index(' VALUES ') + 8:].rstrip().rstrip(';')
-                data.setdefault(table, []).extend(parse_values(values))
-    return data
+        text = f.read()
+    data, pos = {}, 0
+    while True:
+        m = INSERT_RE.search(text, pos)
+        if not m:
+            return data
+        rows, pos = parse_values(text, m.end())
+        data.setdefault(m.group(1), []).extend(rows)
 
 
 # ---------------------------------------------------------------- limpieza de texto
@@ -230,6 +244,20 @@ def fix_truncated(values):
 def title_name(value):
     value = clean(value)
     return value.title() if value.isupper() or value.islower() else value
+
+
+def normalize_email(value):
+    """
+    Correo de la empresa: minúsculas y siempre @empack.com.mx.
+    En el sistema anterior hay dominios mal escritos o de otras épocas
+    (empakatodo.com.mx, empack.com, importado.example.com): se conserva la parte
+    antes de la @ y se cambia el dominio. Vacío o sin @ -> ''.
+    """
+    value = re.sub(r'\s+', '', (value or '')).lower().strip('.;,')
+    if value.count('@') != 1:
+        return ''
+    local = re.sub(r'[^a-z0-9._-]', '', value.split('@')[0]).strip('.')
+    return f"{local}@{COMPANY_DOMAIN}" if local else ''
 
 
 # ---------------------------------------------------------------- fechas
@@ -302,8 +330,8 @@ def run(path, replace=False, real_emails=False, since=None):
 
     def make_email(real):
         real = (real or '').strip().lower()
-        if real_emails and re.fullmatch(r'[^@\s]+@[^@\s]+\.[^@\s]+', real):
-            return real
+        if real_emails and normalize_email(real):
+            return normalize_email(real)
         local = re.sub(r'[^a-z0-9._-]', '', real.split('@')[0]) or 'usuario'
         email, n = f"{local}@{FAKE_DOMAIN}", 2
         while email in used_emails:
@@ -371,10 +399,14 @@ def run(path, replace=False, real_emails=False, since=None):
         return staff_users[person]
 
     # --- Usuarios que levantaron tickets (uno por correo; nombre y ubicación más frecuentes)
+    def requester_ident(r):
+        raw = clean(r[T_EMAIL]).lower()
+        return (normalize_email(raw) if real_emails else raw) or key(r[T_NOMBRE])
+
     names_by_email = defaultdict(Counter)
     location_by_email = defaultdict(Counter)
     for r in tickets_src:
-        ident = clean(r[T_EMAIL]).lower() or key(r[T_NOMBRE])
+        ident = requester_ident(r)
         if not ident:
             continue
         if clean(r[T_NOMBRE]):
@@ -385,7 +417,7 @@ def run(path, replace=False, real_emails=False, since=None):
     requesters = {}
 
     def get_requester(r):
-        ident = clean(r[T_EMAIL]).lower() or key(r[T_NOMBRE])
+        ident = requester_ident(r)
         if not ident:
             return None
         if ident not in requesters:

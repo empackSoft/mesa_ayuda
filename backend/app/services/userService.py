@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from fastapi import HTTPException
 from models.user import User
 from models.location import Location
+from models.department import Department
 
 VALID_ROLES = [
     "user",
@@ -73,6 +74,29 @@ def ensure_location_exists(db: Session, location_id):
         )
 
 
+# Departamento obligatorio y activo (al editar se acepta el que ya tenía aunque esté inactivo)
+def ensure_department_valid(db: Session, department_id, current_id=None):
+    if department_id is None:
+        raise HTTPException(
+            status_code=400,
+            detail="Elige el departamento del usuario"
+        )
+
+    department = db.query(Department).filter(Department.id == department_id).first()
+
+    if department is None:
+        raise HTTPException(
+            status_code=400,
+            detail="El departamento no existe"
+        )
+
+    if not department.is_active and department_id != current_id:
+        raise HTTPException(
+            status_code=400,
+            detail="El departamento está desactivado"
+        )
+
+
 # Los tickets toman la ubicación de quien los levanta, así que un "user" siempre debe tener una
 def ensure_user_has_location(role, location_id):
     if role == "user" and location_id is None:
@@ -88,6 +112,7 @@ def create_user(
 ):
     ensure_location_exists(db, user_data.location_id)
     ensure_user_has_location(user_data.role, user_data.location_id)
+    ensure_department_valid(db, user_data.department_id)
 
     if user_data.role not in VALID_ROLES:
         raise HTTPException(
@@ -112,6 +137,7 @@ def create_user(
         password_hash=hash_password(user_data.password),
         role=user_data.role,
         location_id=user_data.location_id,
+        department_id=user_data.department_id,
         is_active=True
     )
 
@@ -159,6 +185,9 @@ def update_user(
             data.get("role", user.role),
             data.get("location_id", user.location_id)
         )
+
+    if "department_id" in data:
+        ensure_department_valid(db, data["department_id"], current_id=user.department_id)
 
     if "role" in data and data["role"] not in VALID_ROLES:
         raise HTTPException(

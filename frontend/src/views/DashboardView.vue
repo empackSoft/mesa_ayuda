@@ -6,7 +6,8 @@ import TrendAreaChart from '../components/TrendAreaChart.vue'
 import HeatmapGrid from '../components/HeatmapGrid.vue'
 import { formatDuration } from '../utils/format'
 import {
-  LOCATION_TYPE_LABELS, LOCATION_TYPE_PLURALS, PRIORITY_LABELS, RATING_LABELS, STATUS_LABELS, isFinal,
+  LOCATION_TYPE_LABELS, LOCATION_TYPE_PLURALS, PRIORITY_LABELS, RATING_LABELS, STATUS_LABELS,
+  USER_RATING_LABELS, USER_RATING_REASON_LABELS, isFinal,
 } from '../utils/labels'
 
 const data = ref(null)
@@ -37,9 +38,22 @@ const active = computed(() =>
   Object.entries(statusCounts.value).reduce((a, [s, n]) => (isFinal(s) ? a : a + n), 0),
 )
 
-const byStatus = computed(() =>
-  STATUSES.map((s) => ({ key: s, label: STATUS_LABELS[s], value: statusCounts.value[s] ?? 0 })),
-)
+// --- Movimientos por estado: una sola gráfica, cada estado se puede mostrar u ocultar ---
+// Colores fijos por estado (validados para daltonismo en este orden); no cambian al ocultar otros.
+const STATUS_TREND_SERIES = [
+  { key: 'open', label: 'Abiertos', color: '#257de0' },
+  { key: 'in_progress', label: 'En progreso', color: '#f47230' },
+  { key: 'pending', label: 'Pendiente', color: '#00b894' },
+  { key: 'resolved', label: 'Resueltos', color: '#f2a600' },
+  { key: 'closed', label: 'Cerrados', color: '#ee7fac' },
+  { key: 'cancelled', label: 'Cancelados', color: '#008a17' },
+]
+const hiddenStatuses = ref([])
+function toggleStatus(key) {
+  hiddenStatuses.value = hiddenStatuses.value.includes(key)
+    ? hiddenStatuses.value.filter((k) => k !== key)
+    : [...hiddenStatuses.value, key]
+}
 
 const byPriority = computed(() =>
   [...PRIORITIES].reverse().map((p) => ({
@@ -60,6 +74,25 @@ const byRating = computed(() =>
     value: satisfaction.value.by_rating?.[r] ?? 0,
   })),
 )
+// --- Calificación de Soporte a los usuarios ---
+const userRatings = computed(
+  () => data.value?.user_ratings ?? { total: 0, by_rating: {}, by_reason: {}, worst_users: [] },
+)
+const byUserRating = computed(() =>
+  [5, 4, 3, 2, 1].map((r) => ({
+    key: r,
+    label: `${r} ★ ${USER_RATING_LABELS[r]}`,
+    value: userRatings.value.by_rating?.[r] ?? 0,
+  })),
+)
+const byUserReason = computed(() =>
+  Object.entries(USER_RATING_REASON_LABELS).map(([key, text]) => ({
+    key,
+    label: text,
+    value: userRatings.value.by_reason?.[key] ?? 0,
+  })),
+)
+
 const autoPct = computed(() =>
   satisfaction.value.total ? Math.round((satisfaction.value.auto / satisfaction.value.total) * 100) : 0,
 )
@@ -77,6 +110,17 @@ const RANGES = [
 ]
 const range = ref(30)
 const rangeCaption = computed(() => RANGES.find((r) => r.value === range.value)?.caption)
+
+const statusTrendPoints = computed(() => (data.value?.status_trend ?? []).slice(-range.value))
+const statusTrendLegend = computed(() =>
+  STATUS_TREND_SERIES.map((s) => ({
+    ...s,
+    hidden: hiddenStatuses.value.includes(s.key),
+    now: statusCounts.value[s.key] ?? 0,
+    total: statusTrendPoints.value.reduce((a, p) => a + (p[s.key] ?? 0), 0),
+  })),
+)
+const statusTrendVisible = computed(() => STATUS_TREND_SERIES.filter((s) => !hiddenStatuses.value.includes(s.key)))
 
 const trend = computed(() => data.value?.trend ?? [])
 const trendPoints = computed(() => trend.value.slice(-range.value))
@@ -271,7 +315,7 @@ const technicians = computed(() => {
 
   <template v-if="data">
     <!-- Indicadores principales: siempre los 4 en una línea (2x2 solo en celular) -->
-    <div class="kpis">
+    <div class="kpis" data-tour="dash-kpis">
       <v-card v-for="k in kpis" :key="k.key" class="kpi">
         <div :title="k.hint">
         <div class="kpi-head">
@@ -288,6 +332,61 @@ const technicians = computed(() => {
         </div>
       </v-card>
     </div>
+
+    <!-- Movimientos por estado -->
+    <v-row dense class="mt-2">
+      <v-col cols="12">
+        <v-card class="pa-5">
+          <div class="d-flex flex-wrap align-start ga-3 mb-3">
+            <div>
+              <div class="section-title mb-0">Tickets por estado</div>
+              <div class="text-body-2 text-secondary-label">
+                Cuántos tickets pasaron a cada estado por día, {{ rangeCaption }}. Toca un estado para ocultarlo o mostrarlo.
+              </div>
+            </div>
+            <v-spacer />
+            <v-btn-toggle
+              v-model="range"
+              mandatory
+              density="compact"
+              variant="outlined"
+              divided
+              rounded="lg"
+              class="range-toggle"
+            >
+              <v-btn v-for="r in RANGES" :key="r.value" :value="r.value" size="small">{{ r.label }}</v-btn>
+            </v-btn-toggle>
+          </div>
+          <div class="legend mb-2" role="group" aria-label="Estados en la gráfica">
+            <button
+              v-for="s in statusTrendLegend"
+              :key="s.key"
+              type="button"
+              class="legend-item legend-toggle"
+              :class="{ 'is-off': s.hidden }"
+              :aria-pressed="!s.hidden"
+              :title="`${s.hidden ? 'Mostrar' : 'Ocultar'} ${s.label} · hoy en este estado: ${s.now}`"
+              @click="toggleStatus(s.key)"
+            >
+              <span class="legend-swatch" :style="{ background: s.hidden ? 'transparent' : s.color, borderColor: s.color }" />
+              {{ s.label }}
+              <strong>{{ s.total }}</strong>
+              <span class="legend-now">hoy {{ s.now }}</span>
+            </button>
+          </div>
+          <TrendAreaChart
+            v-if="statusTrendVisible.length"
+            :points="statusTrendPoints"
+            :series="statusTrendVisible"
+            :fill="false"
+            aria-label="Tickets que pasaron a cada estado por día"
+          />
+          <p v-else class="text-body-2 text-secondary-label py-10 text-center mb-0">
+            Elige al menos un estado para ver la gráfica.
+          </p>
+        </v-card>
+      </v-col>
+    </v-row>
 
     <!-- Tendencia -->
     <v-row dense class="mt-2">
@@ -463,6 +562,58 @@ const technicians = computed(() => {
       </v-col>
     </v-row>
 
+    <!-- Calificación de Soporte a los usuarios -->
+    <v-row dense class="mt-2">
+      <v-col cols="12" md="5">
+        <v-card class="pa-5 h-100">
+          <div class="section-title">Calificación a usuarios</div>
+          <p class="text-caption text-secondary-label mb-4">
+            La da Soporte al terminar cada ticket. Los usuarios no la ven.
+          </p>
+          <template v-if="userRatings.total">
+            <div class="d-flex align-center ga-3 mb-4">
+              <span class="sat-average">{{ userRatings.average?.toFixed(1) }}</span>
+              <div>
+                <v-rating
+                  :model-value="userRatings.average"
+                  readonly
+                  half-increments
+                  density="compact"
+                  size="20"
+                  color="grey-lighten-1"
+                  active-color="secondary"
+                />
+                <div class="text-caption text-secondary-label">{{ userRatings.total }} calificación(es)</div>
+              </div>
+            </div>
+            <BarList :items="byUserRating" />
+            <div class="section-subtitle mt-4 mb-2">Motivos</div>
+            <BarList :items="byUserReason" />
+          </template>
+          <p v-else class="text-body-2 text-secondary-label">Aún no se ha calificado a ningún usuario.</p>
+        </v-card>
+      </v-col>
+      <v-col cols="12" md="7">
+        <v-card class="pa-5 h-100">
+          <div class="section-title">Usuarios con calificación más baja</div>
+          <p class="text-caption text-secondary-label mb-4">Promedio menor a 4 estrellas.</p>
+          <p v-if="!userRatings.worst_users?.length" class="text-body-2 text-secondary-label">
+            Ningún usuario por debajo de 4 estrellas.
+          </p>
+          <div v-for="u in userRatings.worst_users" :key="u.user_id" class="sat-comment d-flex align-center ga-3">
+            <div class="flex-grow-1">
+              <div class="text-body-2 font-weight-medium">{{ u.name }}</div>
+              <div class="text-caption text-secondary-label">{{ u.location ?? 'Sin ubicación' }}</div>
+            </div>
+            <div class="text-right">
+              <div class="text-body-2 sat-stars">{{ u.average.toFixed(1) }} ★</div>
+              <div class="text-caption text-secondary-label">{{ u.count }} ticket(s)</div>
+            </div>
+          </div>
+        </v-card>
+      </v-col>
+    </v-row>
+
     <!-- Picos de trabajo -->
     <v-row dense class="mt-2">
       <v-col cols="12">
@@ -478,21 +629,14 @@ const technicians = computed(() => {
     </v-row>
 
     <v-row dense class="mt-2">
-      <v-col cols="12" md="6" lg="4">
-        <v-card class="pa-5 h-100">
-          <div class="section-title">Tickets por estado</div>
-          <p class="text-caption text-secondary-label mb-4">Incluye los cerrados.</p>
-          <BarList :items="byStatus" />
-        </v-card>
-      </v-col>
-      <v-col cols="12" md="6" lg="4">
+      <v-col cols="12" md="6">
         <v-card class="pa-5 h-100">
           <div class="section-title">Tickets abiertos por prioridad</div>
           <p class="text-caption text-secondary-label mb-4">Solo tickets sin cerrar.</p>
           <BarList :items="byPriority" />
         </v-card>
       </v-col>
-      <v-col cols="12" lg="4">
+      <v-col cols="12" md="6">
         <v-card class="pa-5 h-100">
           <div class="section-title">Tiempo promedio de resolución por prioridad</div>
           <p class="text-caption text-secondary-label mb-4">
@@ -625,6 +769,37 @@ const technicians = computed(() => {
 .kpi-foot span {
   overflow: hidden;
   text-overflow: ellipsis;
+}
+.legend-toggle {
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--app-hairline);
+  background: transparent;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  transition: opacity 0.15s, background 0.15s;
+}
+.legend-toggle:hover {
+  background: rgba(0, 0, 0, 0.04);
+}
+.legend-toggle.is-off {
+  opacity: 0.5;
+}
+.legend-toggle.is-off strong {
+  text-decoration: line-through;
+}
+.legend-toggle .legend-swatch {
+  border: 2px solid;
+}
+.legend-now {
+  font-size: 11px;
+  opacity: 0.75;
+}
+.section-subtitle {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--app-text-secondary);
 }
 .legend {
   display: flex;

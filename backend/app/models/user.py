@@ -22,6 +22,9 @@ class User(Base):
     # Ubicación del usuario; sus tickets se registran con ella
     location_id = Column(Integer, ForeignKey("locations.id"), nullable=True)
 
+    # Departamento (catálogo). Obligatorio al dar de alta; los importados pueden no tenerlo aún
+    department_id = Column(Integer, ForeignKey("departments.id"), nullable=True)
+
     is_active = Column(Boolean, default=True)
 
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -31,3 +34,7 @@ class User(Base):
         default=datetime.utcnow,
         onupdate=datetime.utcnow
     )
+
+# Para que las llaves foráneas resuelvan aunque un script solo importe User
+from models.location import Location  # noqa: E402,F401
+from models.department import Department  # noqa: E402,F401

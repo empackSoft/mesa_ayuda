@@ -1,6 +1,6 @@
 import { h } from 'vue'
 import {
-  ArrowDown, ArrowLeft, ArrowUp, Ban, Bell, BellOff, Building2, CheckCheck, KeyRound, RotateCcw,
+  ArrowDown, ArrowLeft, ArrowUp, Ban, Briefcase, Handshake, UserCheck, CircleHelp, Map, Bell, BellOff, Building2, CheckCheck, KeyRound, RotateCcw,
   ThumbsDown, ThumbsUp, Volume2, VolumeX, Calendar, Check, ChartColumn, ChevronDown,
   ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, ChevronUp, Circle,
   CircleAlert, CircleCheck, CircleDot, CircleX, ClipboardPaste, Clock, Download,
@@ -18,6 +18,11 @@ const ICONS = {
   'arrow-left': ArrowLeft,
   'arrow-up': ArrowUp,
   ban: Ban,
+  briefcase: Briefcase,
+  handshake: Handshake,
+  'circle-help': CircleHelp,
+  map: Map,
+  'user-check': UserCheck,
   bell: Bell,
   'bell-off': BellOff,
   'check-check': CheckCheck,

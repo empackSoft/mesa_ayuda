@@ -9,6 +9,7 @@ from models.user import User
 from models.ticket import Ticket
 from models.incidencia import Incidencia
 from models.subincidencia import Subincidencia
+from models.location import Location
 from services.ticketHistoryService import create_history
 import os
 import shutil
@@ -432,6 +433,7 @@ def get_tickets(
         .join(Subincidencia, Subincidencia.id == Ticket.subincidencia_id)
         .outerjoin(creator, creator.id == Ticket.created_by_user_id)
         .outerjoin(assignee, assignee.id == Ticket.assigned_to_user_id)
+        .outerjoin(Location, Location.id == Ticket.location_id)
     )
 
     if current_user and current_user.role == "user":
@@ -470,6 +472,7 @@ def get_tickets(
             Subincidencia.name.ilike(pattern, escape="\\"),
             creator.name.ilike(pattern, escape="\\"),
             assignee.name.ilike(pattern, escape="\\"),
+            Location.name.ilike(pattern, escape="\\"),
         ]
         number = q.lstrip("#")
         if number.isdigit() and len(number) < 10:

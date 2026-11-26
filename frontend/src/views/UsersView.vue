@@ -1,7 +1,7 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import http, { errorMessage } from '../api/http'
-import { locationsApi } from '../api/tickets'
+import { departmentsApi, locationsApi } from '../api/tickets'
 import { useAuthStore } from '../stores/auth'
 import { formatDate, initials } from '../utils/format'
 import { LOCATION_TYPE_LABELS, ROLE_LABELS, label } from '../utils/labels'
@@ -29,6 +29,17 @@ const locationItems = computed(() =>
 )
 // Los tickets toman la ubicación de quien los levanta: para un "user" es obligatoria
 const locationRules = [(v) => fields.value.role !== 'user' || !!v || 'Obligatoria: sus tickets se registran con esta ubicación']
+// Departamentos: obligatorio al dar de alta (los usuarios importados pueden no tenerlo aún)
+const departments = ref([])
+const departmentName = computed(() => Object.fromEntries(departments.value.map((d) => [d.id, d.name])))
+const departmentItems = computed(() =>
+  departments.value
+    .filter((d) => d.is_active || d.id === fields.value.department_id)
+    .map((d) => ({ value: d.id, title: d.name })),
+)
+const departmentRules = [(v) => !!v || 'Elige el departamento']
+const departmentFilter = ref(null)
+
 const loading = ref(false)
 const error = ref('')
 const notice = ref({ show: false, text: '', color: 'success' })
@@ -65,9 +76,14 @@ async function load() {
   loading.value = true
   error.value = ''
   try {
-    const [{ data }, locationList] = await Promise.all([http.get('/users/'), locationsApi.list()])
+    const [{ data }, locationList, departmentList] = await Promise.all([
+      http.get('/users/'),
+      locationsApi.list(),
+      departmentsApi.list(),
+    ])
     users.value = data
     locations.value = locationList
+    departments.value = departmentList
   } catch (e) {
     error.value = errorMessage(e, 'No se pudieron cargar los usuarios')
   } finally {
@@ -83,6 +99,7 @@ const filtered = computed(() => {
     if (!showInactive.value && !u.is_active) return false
     if (roleFilter.value && u.role !== roleFilter.value) return false
     if (locationFilter.value && u.location_id !== locationFilter.value) return false
+    if (departmentFilter.value && u.department_id !== departmentFilter.value) return false
     return !q || u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q)
   })
 })
@@ -92,6 +109,7 @@ const inactiveCount = computed(() => users.value.filter((u) => !u.is_active).len
 const headers = [
   { title: 'Nombre', key: 'name' },
   { title: 'Ubicación', key: 'location_id', width: 200 },
+  { title: 'Departamento', key: 'department_id', width: 180 },
   { title: 'Rol', key: 'role', width: 150 },
   { title: 'Estado', key: 'is_active', width: 120 },
   { title: 'Alta', key: 'created_at', width: 140 },
@@ -104,7 +122,9 @@ function isSelf(u) {
 
 function openCreate() {
   editing.value = null
-  fields.value = { name: '', email: '', role: 'user', location_id: null, password: '', is_active: true }
+  fields.value = {
+    name: '', email: '', role: 'user', location_id: null, department_id: null, password: '', is_active: true,
+  }
   formError.value = ''
   showPassword.value = false
   dialog.value = true
@@ -112,7 +132,15 @@ function openCreate() {
 
 function openEdit(u) {
   editing.value = u
-  fields.value = { name: u.name, email: u.email, role: u.role, location_id: u.location_id, password: '', is_active: u.is_active }
+  fields.value = {
+    name: u.name,
+    email: u.email,
+    role: u.role,
+    location_id: u.location_id,
+    department_id: u.department_id,
+    password: '',
+    is_active: u.is_active,
+  }
   formError.value = ''
   showPassword.value = false
   dialog.value = true
@@ -133,6 +161,7 @@ async function save() {
       if (f.email.trim() !== editing.value.email) payload.email = f.email.trim()
       if (f.role !== editing.value.role) payload.role = f.role
       if (f.location_id !== editing.value.location_id) payload.location_id = f.location_id
+      if (f.department_id !== editing.value.department_id) payload.department_id = f.department_id
       if (f.is_active !== editing.value.is_active) payload.is_active = f.is_active
       if (f.password) payload.password = f.password
       if (Object.keys(payload).length) {
@@ -146,6 +175,7 @@ async function save() {
         email: f.email.trim(),
         role: f.role,
         location_id: f.location_id,
+        department_id: f.department_id,
         password: f.password,
       })
       users.value.unshift(data)
@@ -168,13 +198,13 @@ async function save() {
     </div>
     <v-spacer />
     <v-btn icon="refresh-cw" variant="text" :loading="loading" title="Actualizar" @click="load" />
-    <v-btn color="primary" prepend-icon="user-plus" @click="openCreate">Nuevo usuario</v-btn>
+    <v-btn color="primary" prepend-icon="user-plus" data-tour="new-user" @click="openCreate">Nuevo usuario</v-btn>
   </header>
 
   <v-alert v-if="error" type="error" class="mb-4">{{ error }}</v-alert>
 
   <v-card>
-    <div class="d-flex flex-wrap ga-3 pa-4">
+    <div class="d-flex flex-wrap ga-3 pa-4" data-tour="users-filters">
       <v-text-field
         v-model="search"
         prepend-inner-icon="search"
@@ -200,6 +230,14 @@ async function save() {
         clearable
         class="filter-location"
       />
+      <v-autocomplete
+        v-model="departmentFilter"
+        :items="departments.map((d) => ({ value: d.id, title: d.name }))"
+        placeholder="Departamento"
+        hide-details
+        clearable
+        class="filter-location"
+      />
       <v-switch
         v-model="showInactive"
         :label="`Mostrar inactivos (${inactiveCount})`"
@@ -214,6 +252,7 @@ async function save() {
     <v-divider />
 
     <v-data-table
+      data-tour="users-table"
       :headers="headers"
       :items="filtered"
       :loading="loading"
@@ -239,6 +278,11 @@ async function save() {
       <template #item.location_id="{ item }">
         <span v-if="item.location_id" class="text-body-2">{{ locationName[item.location_id] }}</span>
         <span v-else class="text-body-2 text-secondary-label">—</span>
+      </template>
+
+      <template #item.department_id="{ item }">
+        <span v-if="item.department_id" class="text-body-2">{{ departmentName[item.department_id] }}</span>
+        <span v-else class="text-body-2 text-secondary-label">Sin asignar</span>
       </template>
 
       <template #item.role="{ item }">
@@ -304,6 +348,15 @@ async function save() {
             hint="Sus tickets se registran en automático con esta ubicación."
             persistent-hint
             class="mb-3"
+          />
+
+          <label class="field-label">Departamento</label>
+          <v-autocomplete
+            v-model="fields.department_id"
+            :items="departmentItems"
+            :rules="departmentRules"
+            placeholder="Elige un departamento"
+            class="mb-1"
           />
 
           <label class="field-label">Rol</label>

@@ -7,6 +7,7 @@ import MascotPeek from '../components/MascotPeek.vue'
 import TicketAttachments from '../components/TicketAttachments.vue'
 import TicketConversation from '../components/TicketConversation.vue'
 import TicketFeedback from '../components/TicketFeedback.vue'
+import UserRatingCard from '../components/UserRatingCard.vue'
 import { useAuthStore } from '../stores/auth'
 import { useFeedbackStore } from '../stores/feedback'
 import { formatDateTime, timeAgo } from '../utils/format'
@@ -215,7 +216,7 @@ watch(ticketId, load, { immediate: true })
     </v-alert>
 
     <!-- Solicitante: confirmar la solución y calificar -->
-    <v-card v-if="isOwner && ticket.feedback_state" class="pa-5 mb-4 feedback-card">
+    <v-card v-if="isOwner && ticket.feedback_state" class="pa-5 mb-4 feedback-card" data-tour="ticket-feedback">
       <div class="font-weight-medium mb-3">
         {{ ticket.feedback_state === 'confirm' ? 'Tu ticket fue resuelto' : 'Califica la atención' }}
       </div>
@@ -238,12 +239,12 @@ watch(ticketId, load, { immediate: true })
     </v-alert>
 
     <v-row>
-      <v-col cols="12" md="8" order="2" order-md="1">
+      <v-col cols="12" md="8" order="2" order-md="1" data-tour="ticket-conversation">
         <TicketConversation ref="conversation" :ticket="ticket" @commented="loadHistory" />
       </v-col>
 
       <v-col cols="12" md="4" order="1" order-md="2" class="d-flex flex-column ga-4">
-        <v-card class="pa-5">
+        <v-card class="pa-5" data-tour="ticket-details">
           <dl class="details">
             <dt>Solicitante</dt>
             <dd>{{ ticket.created_by_user_name ?? '—' }}</dd>
@@ -271,6 +272,7 @@ watch(ticketId, load, { immediate: true })
 
           <v-btn
             v-if="canCancel && !auth.isStaff"
+            data-tour="ticket-cancel"
             block
             variant="tonal"
             color="error"
@@ -285,6 +287,8 @@ watch(ticketId, load, { immediate: true })
         </v-card>
 
         <!-- Resultado de la encuesta -->
+        <UserRatingCard data-tour="ticket-user-rating" :ticket-id="ticket.id" :status="ticket.status" @rated="loadHistory" />
+
         <v-card v-if="ticket.survey" class="pa-5">
           <div class="font-weight-medium mb-2">Calificación del servicio</div>
           <div class="d-flex align-center ga-2">
@@ -392,7 +396,7 @@ watch(ticketId, load, { immediate: true })
           </v-btn>
         </v-card>
 
-        <TicketAttachments :ticket-id="ticket.id" :closed="closed" @uploaded="loadHistory" />
+        <TicketAttachments data-tour="ticket-attachments" :ticket-id="ticket.id" :closed="closed" @uploaded="loadHistory" />
 
         <!-- Historial (solo soporte/admin) -->
         <v-card v-if="auth.isStaff" class="pa-5">
@@ -427,7 +431,7 @@ watch(ticketId, load, { immediate: true })
       <v-card-title class="pt-4 px-5 text-h6">¿Cerrar el ticket #{{ ticket?.id }}?</v-card-title>
       <v-card-text class="px-5">
         Un ticket cerrado ya no admite comentarios ni archivos. Se avisará al solicitante por correo
-        y se le pedirá calificar la atención (si no responde en 24 h, se registra con 5 estrellas).
+        y se le pedirá calificar la atención (si no responde en 24 h. se registrara como Cerrado)
       </v-card-text>
       <v-card-actions class="px-5 pb-4">
         <v-spacer />

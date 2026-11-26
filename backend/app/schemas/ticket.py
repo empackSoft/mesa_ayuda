@@ -89,5 +89,27 @@ class TicketSurveyCreate(BaseModel):
     comment: Optional[str] = Field(None, max_length=2000)
 
 
+class TicketUserRatingCreate(BaseModel):
+    rating: int = Field(..., ge=1, le=5)
+    reasons: list[str] = Field(default_factory=list, max_length=10)
+    comment: Optional[str] = Field(None, max_length=2000)
+
+
+class TicketUserRatingResponse(BaseModel):
+    ticket_id: int
+    rated_user_id: Optional[int]
+    rated_by_user_id: int
+    rated_by_user_name: Optional[str]
+    rating: int
+    reasons: list[str]
+    comment: Optional[str]
+    created_at: Optional[datetime]
+
+
+class TicketUserRatingState(BaseModel):
+    rating: Optional[TicketUserRatingResponse] = None
+    can_rate: bool = False
+
+
 class TicketReopen(BaseModel):
     reason: str = Field(..., min_length=5, max_length=2000)

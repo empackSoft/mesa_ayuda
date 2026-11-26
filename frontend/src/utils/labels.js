@@ -39,6 +39,21 @@ export const RATING_LABELS = {
   5: 'Excelente',
 }
 
+// Calificación que Soporte le da al usuario (mismos motivos que USER_RATING_REASONS en el backend)
+export const USER_RATING_REASON_LABELS = {
+  no_response: 'No respondió',
+  bad_response: 'Respondió mal',
+  false_info: 'Dio información falsa',
+}
+
+export const USER_RATING_LABELS = {
+  1: 'Muy mal',
+  2: 'Mal',
+  3: 'Regular',
+  4: 'Bien',
+  5: 'Excelente',
+}
+
 export const PRIORITY_LABELS = {
   low: 'Baja',
   medium: 'Media',
@@ -58,18 +73,21 @@ export const LOCATION_TYPE_LABELS = {
   branch: 'Sucursal',
   cedis: 'CEDIS',
   corporate: 'Corporativo',
+  franchise: 'Franquicia',
 }
 
 export const LOCATION_TYPE_PLURALS = {
   branch: 'Sucursales',
   cedis: 'CEDIS',
   corporate: 'Corporativos',
+  franchise: 'Franquicias',
 }
 
 export const LOCATION_TYPE_ICONS = {
   branch: 'store',
   cedis: 'warehouse',
   corporate: 'building-2',
+  franchise: 'handshake',
 }
 
 export const label = (map, value) => map[value] ?? value
@@ -116,6 +134,8 @@ export function historyText(item, staffById = {}) {
       return oldValue === 'auto'
         ? `Registró la encuesta en automático con ${newValue} estrellas`
         : `Calificó la atención con ${newValue} de 5 estrellas`
+    case 'USER_RATING':
+      return `Calificó al usuario con ${newValue} de 5 estrellas`
     case 'UPLOAD_ATTACHMENT':
       return 'Adjuntó un archivo'
     case 'COMMENT':

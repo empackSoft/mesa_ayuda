@@ -19,6 +19,10 @@ export const ticketsApi = {
     http.post(`/tickets/${id}/survey`, { rating, comment }).then((r) => r.data),
   reopen: (id, reason) => http.post(`/tickets/${id}/reopen`, { reason }).then((r) => r.data),
 
+  // Calificación de Soporte al usuario que levantó el ticket (el usuario no la ve)
+  userRating: (id) => http.get(`/tickets/${id}/user-rating`).then((r) => r.data),
+  rateUser: (id, payload) => http.post(`/tickets/${id}/user-rating`, payload).then((r) => r.data),
+
   // El backend responde 404 cuando aún no hay historial; se trata como lista vacía
   history: (id) =>
     http
@@ -77,4 +81,10 @@ export const notificationsApi = {
   list: () => http.get('/notifications/').then((r) => r.data),
   markRead: (id) => http.patch(`/notifications/${id}/read`).then((r) => r.data),
   markAllRead: () => http.patch('/notifications/read-all').then((r) => r.data),
+}
+
+export const departmentsApi = {
+  list: () => http.get('/departments/').then((r) => r.data),
+  create: (payload) => http.post('/departments/', payload).then((r) => r.data),
+  update: (id, payload) => http.put(`/departments/${id}`, payload).then((r) => r.data),
 }

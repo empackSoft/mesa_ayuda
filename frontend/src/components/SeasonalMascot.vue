@@ -169,7 +169,7 @@ onMounted(play)
 <template>
   <div
     class="smascot"
-    :class="[`motion-${motion}`, { 'is-playing': playing }]"
+    :class="[`motion-${motion}`, `season-${season}`, { 'is-playing': playing }]"
     :style="{ width: `${size}px` }"
   >
     <div class="smascot-body">
@@ -363,12 +363,33 @@ onMounted(play)
             </g>
           </g>
 
-          <!-- Navidad: gorro de Santa -->
+          <!-- Navidad: gorro de Santa (la borla se mece todo el tiempo) -->
           <g v-if="season === 'navidad'" transform="translate(92 38) rotate(-15)">
             <g class="acc">
-              <path d="M-24 0 C-20 -30 4 -50 26 -40 C31 -37 34 -31 35 -24 C24 -31 14 -28 22 0 Z" fill="#D7263D" />
+              <g class="hat-tip">
+                <path d="M-24 0 C-20 -30 4 -50 26 -40 C31 -37 34 -31 35 -24 C24 -31 14 -28 22 0 Z" fill="#D7263D" />
+                <circle cx="35" cy="-22" r="7" fill="#fff" />
+              </g>
               <rect x="-28" y="-9" width="56" height="13" rx="6.5" fill="#fff" />
-              <circle cx="35" cy="-22" r="7" fill="#fff" />
+            </g>
+          </g>
+
+          <!-- Navidad: bastón de caramelo en la mano derecha -->
+          <g v-if="season === 'navidad'" transform="translate(190 72) rotate(10)">
+            <g class="acc acc--cane">
+              <path d="M0 0 V-44 A10 10 0 0 1 20 -44 V-38" stroke="#1d1d1f" stroke-width="9" />
+              <path d="M0 0 V-44 A10 10 0 0 1 20 -44 V-38" stroke="#fff" stroke-width="6" />
+              <path d="M0 0 V-44 A10 10 0 0 1 20 -44 V-38" stroke="#D7263D" stroke-width="6" stroke-dasharray="5 5" stroke-linecap="butt" />
+            </g>
+          </g>
+
+          <!-- Navidad: regalo en la mano izquierda -->
+          <g v-if="season === 'navidad'" transform="translate(20 104) rotate(-10)">
+            <g class="acc acc--gift">
+              <rect x="-13" y="-12" width="26" height="22" rx="2" fill="#1E7B45" />
+              <rect x="-15" y="-17" width="30" height="7" rx="2" fill="#1E7B45" />
+              <path d="M0 -17 V10" stroke="#F2C230" stroke-width="4" />
+              <path d="M0 -17 C-10 -28 -15 -18 0 -17 C15 -18 10 -28 0 -17" fill="#F2C230" stroke-width="1.6" />
             </g>
           </g>
         </g>
@@ -433,6 +454,7 @@ onMounted(play)
 
 .acc,
 .fx,
+.hat-tip,
 .propeller,
 .flag-cloth,
 .dove-wing {
@@ -504,6 +526,34 @@ onMounted(play)
   10%, 20%, 30%, 40%, 50% { transform: translateX(2.5%); }
   70% { transform: translateY(-10%); }
   85% { transform: translateY(0) scale(1.04, 0.96); }
+}
+
+/* ---------- Animación continua de Navidad (además de la de abrir/cerrar el menú) ---------- */
+.season-navidad:not(.is-playing) .smascot-body { animation: idle-bob 3.4s ease-in-out infinite; }
+.season-navidad .hat-tip { animation: hat-swing 2.6s ease-in-out infinite; transform-origin: 0% 100%; }
+.season-navidad:not(.is-playing) .acc--cane { animation: cane-wave 3.4s ease-in-out infinite; transform-origin: 50% 100%; }
+.season-navidad:not(.is-playing) .acc--gift { animation: gift-hop 3.4s ease-in-out infinite; transform-origin: 50% 100%; }
+
+@keyframes idle-bob {
+  0%, 100% { transform: none; }
+  25% { transform: translateY(-3%) rotate(-2deg); }
+  50% { transform: translateY(0) rotate(0); }
+  75% { transform: translateY(-3%) rotate(2deg); }
+}
+@keyframes hat-swing {
+  0%, 100% { transform: rotate(0); }
+  50% { transform: rotate(-9deg); }
+}
+@keyframes cane-wave {
+  0%, 100% { transform: rotate(0); }
+  30% { transform: rotate(-14deg); }
+  60% { transform: rotate(6deg); }
+}
+@keyframes gift-hop {
+  0%, 60%, 100% { transform: none; }
+  70% { transform: translateY(-14%) rotate(-6deg); }
+  80% { transform: none; }
+  88% { transform: translateY(-6%) rotate(4deg); }
 }
 
 /* ---------- Accesorios ---------- */
@@ -578,6 +628,7 @@ onMounted(play)
 @media (prefers-reduced-motion: reduce) {
   .smascot-body,
   .acc,
+  .hat-tip,
   .propeller,
   .flag-cloth {
     animation: none !important;

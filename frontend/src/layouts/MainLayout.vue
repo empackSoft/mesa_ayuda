@@ -1,17 +1,21 @@
 <script setup>
-import { computed, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useDisplay } from 'vuetify'
 import AppFooter from '../components/AppFooter.vue'
 import BrandLogo from '../components/BrandLogo.vue'
 import ChangePasswordDialog from '../components/ChangePasswordDialog.vue'
+import HelpMenu from '../components/HelpMenu.vue'
 import NotificationBell from '../components/NotificationBell.vue'
 import PendingFeedbackDialog from '../components/PendingFeedbackDialog.vue'
 import SeasonalMascot from '../components/SeasonalMascot.vue'
+import SidebarSnow from '../components/SidebarSnow.vue'
 import { useAuthStore } from '../stores/auth'
 import { useFeedbackStore } from '../stores/feedback'
 import { ROLE_LABELS, label } from '../utils/labels'
 import { SEASONS, currentSeason, seasonCaption } from '../utils/seasons'
+import { playSeasonGreeting } from '../utils/seasonSound'
+import { isTourEnabled, startTour, takeLoginPending } from '../utils/tour'
 
 const auth = useAuthStore()
 const feedback = useFeedbackStore()
@@ -63,6 +67,38 @@ const initials = computed(() =>
     .join(''),
 )
 
+// --- Visita guiada: muestra la de la pantalla actual ---
+// Espera a que la vista pinte su contenido (las vistas cargan sus datos al entrar)
+function waitForContent(timeout = 4000) {
+  return new Promise((resolve) => {
+    const t0 = Date.now()
+    const tick = () => {
+      const ready = document.querySelector('.page .v-card') && !document.querySelector('.page .v-progress-linear--active, .page .v-skeleton-loader')
+      if (ready || Date.now() - t0 > timeout) setTimeout(resolve, 300)
+      else setTimeout(tick, 100)
+    }
+    tick()
+  })
+}
+
+async function runTour() {
+  if (mobile.value) drawer.value = false
+  await waitForContent()
+  startTour({ routeName: router.currentRoute.value.name, isStaff: auth.isStaff })
+}
+
+// Al iniciar sesión: sonido de temporada y visita guiada (si está activada).
+// Si hay una encuesta obligatoria pendiente, esa va primero y la visita se queda
+// para el siguiente inicio de sesión.
+onMounted(async () => {
+  if (!takeLoginPending()) return
+  playSeasonGreeting(season)
+  if (!isTourEnabled(auth.user?.id)) return
+  await feedback.refresh()
+  if (feedback.pending.length) return
+  setTimeout(runTour, 400)
+})
+
 function logout() {
   feedback.clear()
   auth.logout()
@@ -77,9 +113,12 @@ function logout() {
     :rail="isRail"
     rail-width="76"
     class="sidebar"
-    :class="mobile ? 'sidebar--solid' : 'app-glass'"
+    :class="[mobile ? 'sidebar--solid' : 'app-glass', { 'sidebar--navidad': season === 'navidad' }]"
     width="248"
   >
+    <!-- Temporada navideña: nieve solo dentro del menú -->
+    <SidebarSnow v-if="season === 'navidad'" />
+
     <div class="sidebar-mascot" :class="{ 'sidebar-mascot--rail': isRail }">
       <SeasonalMascot :season="season" :size="isRail ? 46 : 88" :play-key="mascotPlays" />
       <div v-if="caption && !isRail" class="season-caption" :style="{ color: captionColor }">
@@ -87,7 +126,7 @@ function logout() {
       </div>
     </div>
 
-    <v-list nav density="compact" class="px-3">
+    <v-list nav density="compact" class="px-3" data-tour="menu">
       <v-list-item
         v-for="item in menu"
         :key="item.title"
@@ -96,6 +135,7 @@ function logout() {
         :title="isRail ? undefined : item.title"
         v-tooltip:end="{ text: item.title, disabled: !isRail }"
         :exact="item.to.name === 'home'"
+        :data-tour="`nav-${item.to.name}`"
         rounded="lg"
         color="primary"
         class="nav-item"
@@ -112,11 +152,13 @@ function logout() {
       <BrandLogo :size="46" :show-text="false" />
     </RouterLink>
 
-    <NotificationBell />
+    <div data-tour="bell" class="d-flex align-center">
+      <NotificationBell />
+    </div>
 
     <v-menu location="bottom end">
       <template #activator="{ props }">
-        <v-btn v-bind="props" variant="text" class="mr-3 px-2" height="44">
+        <v-btn v-bind="props" variant="text" class="mr-3 px-2" height="44" data-tour="account">
           <v-avatar color="primary" size="32" class="mr-2">
             <span class="avatar-initials">{{ initials }}</span>
           </v-avatar>
@@ -152,6 +194,7 @@ function logout() {
 
   <ChangePasswordDialog v-model="showPassword" @changed="passwordChanged = true" />
   <PendingFeedbackDialog />
+  <HelpMenu :user-id="auth.user?.id" @start-tour="runTour" />
 
   <v-snackbar v-model="passwordChanged" color="success" timeout="4000" location="bottom right">
     Tu contraseña se actualizó.
@@ -165,6 +208,10 @@ function logout() {
 /* En pantallas angostas el menú se abre encima del contenido: fondo sólido para que no se transparente */
 .sidebar--solid {
   background: rgb(var(--v-theme-surface)) !important;
+}
+/* Navidad: fondo azul suave para que se vea caer la nieve blanca */
+.sidebar--navidad {
+  background: #dcdcf9 !important;
 }
 .topbar {
   border-bottom: 1px solid var(--app-hairline) !important;

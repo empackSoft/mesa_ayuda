@@ -11,6 +11,7 @@ LOCATION_TYPES = [
     "branch",       # sucursal
     "cedis",        # centro de distribución
     "corporate",    # corporativo
+    "franchise",    # franquicia
 ]
 
 

@@ -71,7 +71,8 @@ const ICONS = {
 .toast-stack {
   position: fixed;
   right: 16px;
-  bottom: 16px;
+  /* arriba del botón de ayuda */
+  bottom: 68px;
   z-index: 3000;
   display: flex;
   flex-direction: column-reverse;

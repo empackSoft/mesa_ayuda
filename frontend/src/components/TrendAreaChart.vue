@@ -8,6 +8,11 @@ const props = defineProps({
   points: { type: Array, required: true },
   series: { type: Array, required: true },
   height: { type: Number, default: 260 },
+  // Máximo del eje Y; sirve para que varias gráficas chicas compartan escala
+  maxValue: { type: Number, default: null },
+  ariaLabel: { type: String, default: 'Tickets por día' },
+  // Sin relleno cuando hay muchas series (las áreas encimadas se vuelven lodo)
+  fill: { type: Boolean, default: true },
 })
 
 const PAD = { top: 12, right: 12, bottom: 28, left: 32 }
@@ -31,7 +36,7 @@ const innerH = computed(() => props.height - PAD.top - PAD.bottom)
 
 // Máximo "redondo" para el eje Y, con 4 líneas guía de valores enteros
 const yTicks = computed(() => {
-  const max = Math.max(1, ...props.points.flatMap((p) => props.series.map((s) => p[s.key] ?? 0)))
+  const max = Math.max(1, props.maxValue ?? 0, ...props.points.flatMap((p) => props.series.map((s) => p[s.key] ?? 0)))
   const step = Math.max(1, Math.ceil(max / 4))
   return [0, 1, 2, 3, 4].map((i) => i * step)
 })
@@ -124,7 +129,7 @@ const tooltip = computed(() => {
 
 <template>
   <div ref="root" class="trend" :style="{ height: `${height}px` }" @mousemove="onMove" @mouseleave="hover = null">
-    <svg :width="width" :height="height" role="img" aria-label="Tickets por día">
+    <svg :width="width" :height="height" role="img" :aria-label="ariaLabel">
       <defs>
         <linearGradient v-for="s in series" :id="`${uid}-${s.key}`" :key="s.key" x1="0" y1="0" x2="0" y2="1">
           <stop offset="0%" :stop-color="s.color" stop-opacity="0.28" />
@@ -152,7 +157,7 @@ const tooltip = computed(() => {
       </g>
 
       <!-- Áreas y líneas -->
-      <path v-for="p in paths" :key="`a-${p.key}`" :d="p.area" :fill="`url(#${uid}-${p.key})`" />
+      <path v-for="p in fill ? paths : []" :key="`a-${p.key}`" :d="p.area" :fill="`url(#${uid}-${p.key})`" />
       <path v-for="p in paths" :key="`l-${p.key}`" :d="p.line" fill="none" :stroke="p.color" stroke-width="2" stroke-linejoin="round" />
 
       <!-- Cursor -->

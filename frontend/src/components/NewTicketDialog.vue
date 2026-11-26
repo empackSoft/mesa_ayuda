@@ -199,7 +199,7 @@ async function submit() {
 
         <v-alert type="info" variant="tonal" density="compact" icon="info" class="mt-4 text-body-2">
           Cuando Soporte lo marque como resuelto, te pediremos confirmar la solución y calificar la atención.
-          Si no respondes en 24 horas, se cerrará automáticamente con 5 estrellas.
+          Si no respondes en 24 horas, se cerrará automáticamente.
         </v-alert>
       </v-card-text>
 

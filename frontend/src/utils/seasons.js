@@ -15,7 +15,7 @@ export const SEASONS = {
   independencia: { caption: '¡Viva México!', color: '#006847' },
   tlatelolco: { caption: '2 de octubre no se olvida', color: '#6E6E73' },
   muertos: { caption: 'Día de Muertos', color: '#E8590C' },
-  navidad: { caption: '¡Feliz Navidad!', color: '#BF0811' },
+  navidad: { caption: '¡Felices fiestas!', color: '#BF0811' },
 }
 
 // El Día del Padre en México es el tercer domingo de junio; se festeja toda esa semana (lun–dom)
@@ -42,13 +42,15 @@ export function seasonFor(date = new Date()) {
   if (month === 8 && day === 9) return 'indigenas'
   if (month === 9) return 'independencia'
   if (month === 10 && day === 2) return 'tlatelolco'
-  if (month === 11) return 'muertos'
-  if (month === 12) return 'navidad'
+  // Día de Muertos: del 25 de octubre al 3 de noviembre
+  if ((month === 10 && day >= 25) || (month === 11 && day <= 3)) return 'muertos'
+  // Temporada navideña: del 16 de noviembre al 31 de diciembre
+  if ((month === 11 && day >= 16) || month === 12) return 'navidad'
   return null
 }
 
 // Temporada fija para todos mientras tenga valor (ej. 'muertos'); null = según la fecha
-const FIXED_SEASON = 'muertos'
+const FIXED_SEASON = null
 
 // Para ver una temporada sin esperar la fecha: ?mascota=navidad en cualquier URL de la app
 // (?mascota=normal muestra la mascota sin accesorios)

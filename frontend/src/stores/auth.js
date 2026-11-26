@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import http from '../api/http'
+import { markLoginPending } from '../utils/tour'
 
 // Solo se guardan los datos visibles del usuario (nombre, rol) para pintar la app al recargar.
 // La sesión real es la cookie httpOnly; el backend la valida en cada petición.
@@ -46,6 +47,8 @@ export const useAuthStore = defineStore('auth', {
       }
       this.verified = true
       storeUser(this.user)
+      // Al entrar: visita guiada (si no la desactivó) y, en temporada, sonido de bienvenida
+      markLoginPending()
     },
 
     // Al recargar la página, confirma con el backend que la sesión sigue vigente.

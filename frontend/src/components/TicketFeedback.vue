@@ -71,7 +71,7 @@ async function send(action, kind) {
       <p class="mb-1 font-weight-medium">¿Se solucionó tu problema?</p>
       <p class="text-body-2 text-secondary-label mb-4">
         Soporte marcó este ticket como resuelto. Si no respondes antes del
-        <strong>{{ formatDateTime(ticket.feedback_due_at) }}</strong>, se cerrará automáticamente con 5 estrellas.
+        <strong>{{ formatDateTime(ticket.feedback_due_at) }}</strong>, se cerrará automáticamente.
       </p>
       <div class="d-flex flex-wrap ga-2 mb-2">
         <v-btn
@@ -97,7 +97,7 @@ async function send(action, kind) {
 
     <p v-else class="text-body-2 text-secondary-label mb-2">
       Califica la atención que recibiste. Si no respondes antes del
-      <strong>{{ formatDateTime(ticket.feedback_due_at) }}</strong>, se registrará con 5 estrellas.
+      <strong>{{ formatDateTime(ticket.feedback_due_at) }}</strong>, se cerrará automáticamente.
     </p>
 
     <div v-if="askRating" class="mt-3">

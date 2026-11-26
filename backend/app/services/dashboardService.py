@@ -9,6 +9,7 @@ from models.ticketHistory import TicketHistory
 from models.incidencia import Incidencia
 from models.location import Location
 from models.ticketSurvey import TicketSurvey
+from models.ticketUserRating import TicketUserRating
 
 # Ya no son carga de trabajo
 FINAL_STATUSES = ["closed", "cancelled"]
@@ -231,6 +232,68 @@ def get_ticket_trend(db: Session, days: int = TREND_DAYS):
         day = local_day(resolved_at)
         if day in days_map:
             days_map[day]["resolved"] += 1
+
+    return [
+        {"date": day.isoformat(), **counts}
+        for day, counts in days_map.items()
+    ]
+
+
+# Estado al que pasa un ticket con cada acción del historial (STATUS trae el estado en new_value)
+STATUS_BY_ACTION = {
+    "CREATE": "open",
+    "ASSIGN": "in_progress",
+    "REOPEN": "in_progress",
+    "CLOSE": "closed",
+    "CONFIRM": "closed",
+    "AUTO_CLOSE": "closed",
+    "CANCEL": "cancelled",
+}
+TREND_STATUSES = ["open", "in_progress", "pending", "resolved", "closed", "cancelled"]
+
+
+def get_status_trend(db: Session, days: int = TREND_DAYS):
+    """
+    Movimientos por día en los últimos `days` días: cuántos tickets pasaron a cada estado.
+    "open" = tickets creados ese día. Se recorre el historial de cada ticket en orden y solo se
+    cuenta cuando el estado cambia de verdad (reasignar uno que ya estaba En progreso no cuenta).
+    Devuelve todos los días, aunque tengan 0.
+    """
+    today = (datetime.utcnow() + LOCAL_OFFSET).date()
+    first_day = today - timedelta(days=days - 1)
+    since = datetime.combine(first_day, datetime.min.time()) - LOCAL_OFFSET
+
+    actions = list(STATUS_BY_ACTION) + ["STATUS"]
+
+    # Historial completo de los tickets que tuvieron movimiento en el periodo
+    # (se necesita lo anterior para saber de qué estado venían)
+    touched = (
+        db.query(TicketHistory.ticket_id)
+        .filter(TicketHistory.action.in_(actions), TicketHistory.created_at >= since)
+        .distinct()
+        .subquery()
+    )
+    rows = (
+        db.query(TicketHistory.ticket_id, TicketHistory.action, TicketHistory.new_value, TicketHistory.created_at)
+        .filter(TicketHistory.action.in_(actions), TicketHistory.ticket_id.in_(db.query(touched.c.ticket_id)))
+        .order_by(TicketHistory.ticket_id, TicketHistory.created_at, TicketHistory.id)
+        .all()
+    )
+
+    days_map = {
+        first_day + timedelta(days=i): {s: 0 for s in TREND_STATUSES}
+        for i in range(days)
+    }
+
+    current = {}
+    for ticket_id, action, new_value, created_at in rows:
+        new_status = new_value if action == "STATUS" else STATUS_BY_ACTION[action]
+        if new_status not in TREND_STATUSES or current.get(ticket_id) == new_status:
+            continue
+        current[ticket_id] = new_status
+        day = _to_local(created_at).date()
+        if day in days_map:
+            days_map[day][new_status] += 1
 
     return [
         {"date": day.isoformat(), **counts}
@@ -462,8 +525,63 @@ def get_satisfaction(db: Session):
     }
 
 
+def get_user_ratings(db: Session, worst_limit: int = 5):
+    """
+    Calificaciones que Soporte le da a los usuarios: promedio, reparto por estrellas, motivos y
+    los usuarios con peor promedio (para detectar quién no responde o da datos falsos).
+    """
+    rows = (
+        db.query(TicketUserRating.rating, func.count(TicketUserRating.id))
+        .group_by(TicketUserRating.rating)
+        .all()
+    )
+
+    by_rating = {str(r): 0 for r in range(1, 6)}
+    total = 0
+    points = 0
+    for rating, count in rows:
+        by_rating[str(rating)] += count
+        total += count
+        points += rating * count
+
+    by_reason = {}
+    for (reasons,) in db.query(TicketUserRating.reasons).all():
+        for reason in reasons or []:
+            by_reason[reason] = by_reason.get(reason, 0) + 1
+
+    worst = (
+        db.query(
+            User.id,
+            User.name,
+            Location.name,
+            func.avg(TicketUserRating.rating),
+            func.count(TicketUserRating.id),
+        )
+        .join(TicketUserRating, TicketUserRating.rated_user_id == User.id)
+        .outerjoin(Location, Location.id == User.location_id)
+        .group_by(User.id, User.name, Location.name)
+        .having(func.avg(TicketUserRating.rating) < 4)
+        .order_by(func.avg(TicketUserRating.rating).asc(), func.count(TicketUserRating.id).desc())
+        .limit(worst_limit)
+        .all()
+    )
+
+    return {
+        "total": total,
+        "average": round(points / total, 2) if total else None,
+        "by_rating": by_rating,
+        "by_reason": by_reason,
+        "worst_users": [
+            {"user_id": i, "name": n, "location": loc, "average": round(float(a), 2), "count": c}
+            for i, n, loc, a, c in worst
+        ],
+    }
+
+
 def get_dashboard(db: Session):
     return {
+        "status_trend": get_status_trend(db),
+        "user_ratings": get_user_ratings(db),
         "satisfaction": get_satisfaction(db),
         "location_counts": get_location_counts(db),
         "resolution_distribution": get_resolution_distribution(db),

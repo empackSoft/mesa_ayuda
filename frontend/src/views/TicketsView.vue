@@ -141,12 +141,12 @@ function onCreated(ticket, failed) {
     </div>
     <v-spacer />
     <v-btn icon="refresh-cw" variant="text" :loading="loading" title="Actualizar" @click="load" />
-    <v-btn color="primary" prepend-icon="plus" @click="showNew = true">Nuevo ticket</v-btn>
+    <v-btn color="primary" prepend-icon="plus" data-tour="new-ticket" @click="showNew = true">Nuevo ticket</v-btn>
   </header>
 
   <v-alert v-if="error" type="error" class="mb-4">{{ error }}</v-alert>
 
-  <v-chip-group v-model="statusFilter" mandatory selected-class="chip-selected" class="mb-3">
+  <v-chip-group v-model="statusFilter" mandatory selected-class="chip-selected" class="mb-3" data-tour="status-tabs">
     <v-chip v-for="tab in STATUS_TABS" :key="tab.value" :value="tab.value" variant="text" size="default">
       {{ tab.title }}
       <span class="ml-2 tab-count">{{ countByTab[tab.value] }}</span>
@@ -157,8 +157,9 @@ function onCreated(ticket, failed) {
     <div class="d-flex flex-wrap ga-3 pa-4">
       <v-text-field
         v-model="search"
+        data-tour="ticket-search"
         prepend-inner-icon="search"
-        placeholder="Buscar por número, descripción, categoría o persona"
+        placeholder="Buscar por número, sucursal, descripción, categoría o persona"
         hide-details
         clearable
         class="filter-search"
@@ -170,6 +171,7 @@ function onCreated(ticket, failed) {
         hide-details
         clearable
         class="filter-priority"
+        data-tour="priority-filter"
       />
       <v-switch
         v-if="auth.isStaff"
@@ -197,6 +199,7 @@ function onCreated(ticket, failed) {
       must-sort
       hover
       class="tickets-table"
+      data-tour="tickets-table"
       @update:options="onOptions"
       @click:row="openTicket"
     >

@@ -25,7 +25,9 @@ from schemas.ticket import (
     TicketPage,
     TicketCancel,
     TicketSurveyCreate,
-    TicketReopen
+    TicketReopen,
+    TicketUserRatingCreate,
+    TicketUserRatingState
 )
 
 from services.ticketService import (
@@ -52,6 +54,7 @@ from services.ticketCommentService import (
     list_comments
 )
 
+from services.ticketUserRatingService import get_user_rating, rate_user
 from services.ticketFeedbackService import (
     submit_survey,
     reopen_ticket,
@@ -216,6 +219,32 @@ def answer_ticket_survey(
         data.comment,
         current_user
     )
+
+
+# Soporte califica al usuario que levantó el ticket; el usuario también la ve (retroalimentación)
+@router.get(
+    "/{ticket_id}/user-rating",
+    response_model=TicketUserRatingState
+)
+def get_ticket_user_rating(
+        ticket_id: int,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(require_user_or_above)
+):
+    return get_user_rating(db, ticket_id, current_user)
+
+
+@router.post(
+    "/{ticket_id}/user-rating",
+    response_model=TicketUserRatingState
+)
+def rate_ticket_user(
+        ticket_id: int,
+        data: TicketUserRatingCreate,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(require_support_or_admin)
+):
+    return rate_user(db, ticket_id, data.rating, data.reasons, data.comment, current_user)
 
 
 # El solicitante indica que el problema sigue: regresa a En progreso

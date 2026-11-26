@@ -20,8 +20,13 @@ from models.notifyGroup import NotifyGroup
 from routers.notifyGroupRouter import router as notify_group_router
 from models.ticketSurvey import TicketSurvey
 from models.notification import Notification
+from models.department import Department
+from models.ticketUserRating import TicketUserRating
 from models.passwordResetToken import PasswordResetToken
 from routers.notificationRouter import router as notification_router
+from routers.departmentRouter import router as department_router
+from services.departmentService import seed_departments
+from database import SessionLocal
 from security.jwt import SECRET_KEY
 from services.scheduledJobs import start_scheduler, stop_scheduler
 
@@ -86,6 +91,9 @@ with engine.begin() as connection:
         "ALTER TABLE notifications ADD COLUMN IF NOT EXISTS kind VARCHAR(30) NOT NULL DEFAULT 'ticket_update'"
     ))
     connection.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS password_changed_at TIMESTAMP"))
+    connection.execute(text(
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS department_id INTEGER REFERENCES departments(id)"
+    ))
     connection.execute(text("""
         DO $$
         BEGIN
@@ -112,6 +120,10 @@ with engine.begin() as connection:
         ) AS seed(key, name, emails)
         WHERE NOT EXISTS (SELECT 1 FROM notify_groups)
     """))
+
+# Catálogo inicial de departamentos (solo si está vacío)
+with SessionLocal() as _db:
+    seed_departments(_db)
 
 app = FastAPI(
     title="Mesa Ayuda API",
@@ -144,6 +156,7 @@ app.include_router(dashboard_router,prefix=API_PREFIX)
 app.include_router(location_router,prefix=API_PREFIX)
 app.include_router(notify_group_router,prefix=API_PREFIX)
 app.include_router(notification_router,prefix=API_PREFIX)
+app.include_router(department_router,prefix=API_PREFIX)
 
 
 # Cierre automático de tickets resueltos sin respuesta y limpieza de avisos viejos

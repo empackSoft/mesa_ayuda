@@ -3,12 +3,16 @@ import { computed, onMounted, ref } from 'vue'
 import http, { errorMessage } from '../api/http'
 import { LOCATION_TYPE_ICONS, LOCATION_TYPE_LABELS, LOCATION_TYPE_PLURALS } from '../utils/labels'
 
-// Catálogo de incidencias (categorías), subincidencias (subcategorías) y ubicaciones. Solo admin.
+// Catálogo de incidencias (categorías), subincidencias (subcategorías), ubicaciones y departamentos.
+// Solo admin.
 // No se borra nada: se desactiva, para no romper tickets que ya las usan.
 
 const incidencias = ref([])
 const subincidencias = ref([])
 const locations = ref([])
+const departments = ref([])
+const newDepartment = ref('')
+const departmentSearch = ref('')
 const newLocation = ref('')
 const newLocationType = ref('branch')
 const locationSearch = ref('')
@@ -38,12 +42,14 @@ async function load() {
   loading.value = true
   error.value = ''
   try {
-    const [inc, subs, locationList, groups] = await Promise.all([
+    const [inc, subs, locationList, groups, departmentList] = await Promise.all([
       http.get('/incidencias/').then((r) => r.data),
       http.get('/incidencias/subincidencias/all').then((r) => r.data),
       http.get('/locations/').then((r) => r.data),
       http.get('/notify-groups/').then((r) => r.data),
+      http.get('/departments/').then((r) => r.data),
     ])
+    departments.value = departmentList
     incidencias.value = inc
     subincidencias.value = subs
     locations.value = locationList
@@ -131,6 +137,28 @@ async function createLocation() {
   }
 }
 
+async function createDepartment() {
+  const name = newDepartment.value.trim()
+  if (name.length < 2) return
+  savingNew.value = 'department'
+  try {
+    const { data } = await http.post('/departments/', { name })
+    departments.value.push(data)
+    departments.value.sort((a, b) => a.name.localeCompare(b.name, 'es'))
+    newDepartment.value = ''
+    notify(`Departamento "${data.name}" creado`)
+  } catch (e) {
+    notify(errorMessage(e), 'error')
+  } finally {
+    savingNew.value = ''
+  }
+}
+
+const filteredDepartments = computed(() => {
+  const q = departmentSearch.value?.trim().toLowerCase()
+  return departments.value.filter((d) => !q || d.name.toLowerCase().includes(q))
+})
+
 const locationTypeCount = computed(() => {
   const counts = { all: locations.value.length }
   for (const l of locations.value) counts[l.type] = (counts[l.type] ?? 0) + 1
@@ -212,15 +240,16 @@ const KIND_URL = {
   incidencia: (id) => `/incidencias/${id}`,
   sub: (id) => `/incidencias/subincidencias/${id}`,
   location: (id) => `/locations/${id}`,
+  department: (id) => `/departments/${id}`,
 }
-const KIND_TITLE = { incidencia: 'categoría', sub: 'subcategoría', location: 'ubicación' }
+const KIND_TITLE = { incidencia: 'categoría', sub: 'subcategoría', location: 'ubicación', department: 'departamento' }
 
 function urlFor(kind, item) {
   return KIND_URL[kind](item.id)
 }
 
 function replaceItem(kind, updated) {
-  const list = { incidencia: incidencias, sub: subincidencias, location: locations }[kind]
+  const list = { incidencia: incidencias, sub: subincidencias, location: locations, department: departments }[kind]
   const i = list.value.findIndex((x) => x.id === updated.id)
   if (i >= 0) list.value[i] = updated
 }
@@ -229,7 +258,8 @@ async function toggleActive(kind, item) {
   try {
     const { data } = await http.put(urlFor(kind, item), { is_active: !item.is_active })
     replaceItem(kind, data)
-    notify(`"${data.name}" ${data.is_active ? 'activada' : 'desactivada'}`)
+    const ending = kind === 'department' ? 'o' : 'a'
+    notify(`"${data.name}" ${data.is_active ? 'activad' : 'desactivad'}${ending}`)
   } catch (e) {
     notify(errorMessage(e), 'error')
   }
@@ -462,7 +492,7 @@ async function saveEdit() {
     </div>
   </v-card>
 
-  <!-- Ubicaciones: sucursales, CEDIS y corporativos -->
+  <!-- Ubicaciones: sucursales, CEDIS, corporativos y franquicias -->
   <v-card class="mt-6">
     <div class="d-flex flex-wrap align-center ga-3 pa-5 pb-3">
       <div>
@@ -566,6 +596,65 @@ async function saveEdit() {
       </section>
       <p v-if="!filteredLocations.length && !loading" class="text-body-2 text-secondary-label pa-3">
         {{ locations.length ? 'Ninguna ubicación coincide.' : 'Aún no hay ubicaciones.' }}
+      </p>
+    </div>
+  </v-card>
+
+  <!-- Departamentos: cada usuario pertenece a uno -->
+  <v-card class="mt-6">
+    <div class="d-flex flex-wrap align-center ga-3 pa-5 pb-3">
+      <div>
+        <div class="font-weight-medium">Departamentos</div>
+        <div class="text-caption text-secondary-label">
+          Obligatorio al dar de alta un usuario. Los desactivados ya no se ofrecen en el formulario.
+        </div>
+      </div>
+      <v-spacer />
+      <v-text-field
+        v-model="departmentSearch"
+        prepend-inner-icon="search"
+        placeholder="Buscar"
+        hide-details
+        density="compact"
+        clearable
+        class="location-search"
+      />
+    </div>
+
+    <form class="d-flex ga-2 px-5 pb-3" @submit.prevent="createDepartment">
+      <v-text-field v-model="newDepartment" placeholder="Nuevo departamento" hide-details density="compact" maxlength="100" />
+      <v-btn
+        type="submit"
+        color="primary"
+        icon="plus"
+        :loading="savingNew === 'department'"
+        :disabled="newDepartment.trim().length < 2"
+        title="Agregar departamento"
+      />
+    </form>
+    <v-divider />
+
+    <div class="pa-2">
+      <div class="location-grid">
+        <div v-for="d in filteredDepartments" :key="d.id" class="location-item">
+          <v-icon icon="briefcase" size="16" class="text-secondary-label" />
+          <span class="location-name" :class="{ 'text-secondary-label': !d.is_active }">
+            {{ d.name }}<span v-if="!d.is_active" class="text-caption"> · inactivo</span>
+          </span>
+          <v-btn icon="pencil" variant="text" size="x-small" title="Renombrar" @click="startEdit('department', d)" />
+          <v-switch
+            :model-value="d.is_active"
+            color="primary"
+            hide-details
+            inset
+            density="compact"
+            :title="d.is_active ? 'Desactivar' : 'Activar'"
+            @update:model-value="toggleActive('department', d)"
+          />
+        </div>
+      </div>
+      <p v-if="!filteredDepartments.length && !loading" class="text-body-2 text-secondary-label pa-3">
+        {{ departments.length ? 'Ningún departamento coincide.' : 'Aún no hay departamentos.' }}
       </p>
     </div>
   </v-card>

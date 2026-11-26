@@ -40,13 +40,13 @@ const shortcuts = computed(() => [
 </script>
 
 <template>
-  <header class="mb-8">
+  <header class="mb-8" data-tour="home-greeting">
     <p class="text-secondary-label mb-1">{{ greeting }}</p>
     <h2 class="text-h4">{{ firstName }}</h2>
     <v-chip color="primary" class="mt-3">{{ label(ROLE_LABELS, auth.role) }}</v-chip>
   </header>
 
-  <v-row>
+  <v-row data-tour="home-shortcuts">
     <v-col v-for="s in shortcuts" :key="s.title" cols="12" sm="6" lg="4">
       <v-card :to="s.to" class="pa-5 h-100">
         <div class="icon-tile mb-4">

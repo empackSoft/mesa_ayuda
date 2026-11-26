@@ -9,6 +9,7 @@ class UserCreate(BaseModel):
     password: str = Field(..., min_length=8, max_length=72)
     role: str = Field(default="user")
     location_id: Optional[int] = None
+    department_id: int
 
 
 class UserUpdate(BaseModel):
@@ -17,6 +18,7 @@ class UserUpdate(BaseModel):
     password: Optional[str] = Field(None, min_length=8, max_length=72)
     role: Optional[str] = None
     location_id: Optional[int] = None
+    department_id: Optional[int] = None
     is_active: Optional[bool] = None
 
 
@@ -26,6 +28,7 @@ class UserResponse(BaseModel):
     email: str
     role: str
     location_id: Optional[int]
+    department_id: Optional[int] = None
     is_active: bool
     created_at: datetime
     updated_at: Optional[datetime]

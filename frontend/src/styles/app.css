@@ -84,3 +84,43 @@ body {
   margin: 0 0 6px 2px;
   color: var(--app-text-secondary);
 }
+
+/* Visita guiada (driver.js) con el estilo de la app */
+.driver-popover.empack-tour {
+  font-family: 'Inter Variable', Inter, system-ui, sans-serif;
+  border-radius: 14px;
+  padding: 18px 18px 14px;
+  max-width: 320px;
+  box-shadow: 0 12px 40px rgba(11, 40, 121, 0.22);
+}
+.empack-tour .driver-popover-title {
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: #0b2879;
+}
+.empack-tour .driver-popover-description {
+  font-size: 14px;
+  line-height: 1.5;
+  color: #3a3a3c;
+}
+.empack-tour .driver-popover-progress-text {
+  font-size: 12px;
+  color: #86868b;
+}
+.empack-tour .driver-popover-footer button {
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  text-shadow: none;
+  border-radius: 8px;
+  padding: 5px 12px;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  background: #fff;
+  color: #1d1d1f;
+}
+.empack-tour .driver-popover-footer .driver-popover-next-btn {
+  background: #0b2879;
+  border-color: #0b2879;
+  color: #fff;
+}

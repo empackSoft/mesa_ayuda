@@ -400,6 +400,15 @@ def create_ticket(
 
     return build_ticket_response(new_ticket)
 
+# Las fechas se guardan en UTC; los filtros por día usan hora de México (UTC-6, sin horario de verano)
+LOCAL_OFFSET = timedelta(hours=-6)
+
+
+def _local_day_start_utc(day) -> datetime:
+    """00:00 del día en hora de México, expresado en UTC (como se guarda created_at)."""
+    return datetime(day.year, day.month, day.day) - LOCAL_OFFSET
+
+
 def _escape_like(text: str) -> str:
     return text.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
 
@@ -412,6 +421,8 @@ def get_tickets(
         subincidencia_id: int = None,
         created_from=None,
         created_to=None,
+        location_id: int = None,
+        created_by_user_id: int = None,
         q: str = None,
         assigned_to_me: bool = False,
         page: int = 1,
@@ -454,11 +465,19 @@ def get_tickets(
     if subincidencia_id:
         query = query.filter(Ticket.subincidencia_id == subincidencia_id)
 
+    # created_from / created_to son días (hora de México), ambos incluidos
     if created_from:
-        query = query.filter(Ticket.created_at >= created_from)
+        query = query.filter(Ticket.created_at >= _local_day_start_utc(created_from))
 
     if created_to:
-        query = query.filter(Ticket.created_at <= created_to)
+        query = query.filter(Ticket.created_at < _local_day_start_utc(created_to + timedelta(days=1)))
+
+    # Sucursal y solicitante: solo staff (un usuario ya ve únicamente sus tickets)
+    if location_id and current_user and current_user.role != "user":
+        query = query.filter(Ticket.location_id == location_id)
+
+    if created_by_user_id and current_user and current_user.role != "user":
+        query = query.filter(Ticket.created_by_user_id == created_by_user_id)
 
     if assigned_to_me and current_user:
         query = query.filter(Ticket.assigned_to_user_id == current_user.id)
@@ -507,6 +526,7 @@ def get_tickets(
         "priority": PRIORITY_ORDER,
         "created_by_user_name": creator.name,
         "assigned_to_user_name": assignee.name,
+        "location_name": Location.name,
     }
     column = sort_columns.get(sort_by, Ticket.id)
     order = column.desc().nullslast() if sort_desc else column.asc().nullslast()

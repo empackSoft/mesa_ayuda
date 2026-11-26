@@ -1,8 +1,8 @@
 <script setup>
-import { computed, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { errorMessage } from '../api/http'
-import { ticketsApi } from '../api/tickets'
+import { locationsApi, ticketsApi, usersApi } from '../api/tickets'
 import MascotPeek from '../components/MascotPeek.vue'
 import NewTicketDialog from '../components/NewTicketDialog.vue'
 import { useAuthStore } from '../stores/auth'
@@ -27,6 +27,28 @@ const search = ref('')
 const statusFilter = ref('active')
 const priorityFilter = ref(null)
 const onlyMine = ref(false)
+// Solo staff: sucursal, solicitante y rango de fechas (días en hora de México, ambos incluidos)
+const locationFilter = ref(null)
+const requesterFilter = ref(null)
+const dateFrom = ref('')
+const dateTo = ref('')
+const locations = ref([])
+const requesters = ref([])
+
+onMounted(async () => {
+  if (!auth.isStaff) return
+  try {
+    const [locs, reqs] = await Promise.all([locationsApi.list(), usersApi.requesters()])
+    locations.value = locs
+    requesters.value = reqs.map((u) => ({
+      ...u,
+      title: u.is_active ? u.name : `${u.name} (inactivo)`,
+      subtitle: u.location_name || 'Sin sucursal',
+    }))
+  } catch {
+    // Sin catálogos los filtros quedan vacíos; la lista sigue funcionando
+  }
+})
 
 const page = ref(1)
 const itemsPerPage = ref(25)
@@ -45,6 +67,10 @@ async function load() {
       priority: priorityFilter.value || undefined,
       q: search.value?.trim() || undefined,
       assigned_to_me: onlyMine.value || undefined,
+      location_id: locationFilter.value || undefined,
+      created_by_user_id: requesterFilter.value || undefined,
+      created_from: dateFrom.value || undefined,
+      created_to: dateTo.value || undefined,
       page: page.value,
       page_size: itemsPerPage.value,
       sort_by: sort.key,
@@ -68,7 +94,7 @@ function reloadFromFirstPage() {
   else load()
 }
 
-watch([statusFilter, priorityFilter, onlyMine], reloadFromFirstPage)
+watch([statusFilter, priorityFilter, onlyMine, locationFilter, requesterFilter, dateFrom, dateTo], reloadFromFirstPage)
 
 let searchTimer = null
 watch(search, () => {
@@ -101,8 +127,22 @@ const countByTab = computed(() => ({
 }))
 
 const hasFilters = computed(() =>
-  Boolean(search.value?.trim() || priorityFilter.value || onlyMine.value || statusFilter.value !== 'all'),
+  Boolean(
+    search.value?.trim() || priorityFilter.value || onlyMine.value || statusFilter.value !== 'all'
+    || locationFilter.value || requesterFilter.value || dateFrom.value || dateTo.value,
+  ),
 )
+
+const hasStaffFilters = computed(() =>
+  Boolean(locationFilter.value || requesterFilter.value || dateFrom.value || dateTo.value),
+)
+
+function clearStaffFilters() {
+  locationFilter.value = null
+  requesterFilter.value = null
+  dateFrom.value = ''
+  dateTo.value = ''
+}
 
 const priorityItems = Object.entries(PRIORITY_LABELS).map(([value, title]) => ({ value, title }))
 
@@ -111,7 +151,12 @@ const headers = computed(() => [
   { title: 'Ticket', key: 'description', sortable: false },
   { title: 'Estado', key: 'status', width: 130 },
   { title: 'Prioridad', key: 'priority', width: 120 },
-  ...(auth.isStaff ? [{ title: 'Solicitante', key: 'created_by_user_name', width: 170 }] : []),
+  ...(auth.isStaff
+    ? [
+        { title: 'Solicitante', key: 'created_by_user_name', width: 170 },
+        { title: 'Sucursal', key: 'location_name', width: 170 },
+      ]
+    : []),
   { title: 'Asignado a', key: 'assigned_to_user_name', width: 170 },
   { title: 'Creado', key: 'created_at', width: 130 },
 ])
@@ -185,6 +230,53 @@ function onCreated(ticket, failed) {
       />
     </div>
 
+    <div v-if="auth.isStaff" class="d-flex flex-wrap align-center ga-3 px-4 pb-4" data-tour="staff-filters">
+      <v-autocomplete
+        v-model="requesterFilter"
+        :items="requesters"
+        item-value="id"
+        item-title="title"
+        :item-props="(u) => ({ subtitle: u.subtitle })"
+        placeholder="Solicitante"
+        prepend-inner-icon="user"
+        hide-details
+        clearable
+        class="filter-wide"
+      />
+      <v-autocomplete
+        v-model="locationFilter"
+        :items="locations"
+        item-value="id"
+        item-title="name"
+        placeholder="Sucursal"
+        prepend-inner-icon="map-pin"
+        hide-details
+        clearable
+        class="filter-wide"
+      />
+      <v-text-field
+        v-model="dateFrom"
+        type="date"
+        label="Desde"
+        :max="dateTo || undefined"
+        hide-details
+        clearable
+        class="filter-date"
+      />
+      <v-text-field
+        v-model="dateTo"
+        type="date"
+        label="Hasta"
+        :min="dateFrom || undefined"
+        hide-details
+        clearable
+        class="filter-date"
+      />
+      <v-btn v-if="hasStaffFilters" variant="text" prepend-icon="x" @click="clearStaffFilters">
+        Quitar filtros
+      </v-btn>
+    </div>
+
     <v-divider />
 
     <v-data-table-server
@@ -227,6 +319,11 @@ function onCreated(ticket, failed) {
         </v-chip>
       </template>
 
+      <template #item.location_name="{ item }">
+        <span v-if="item.location_name">{{ item.location_name }}</span>
+        <span v-else class="text-secondary-label">—</span>
+      </template>
+
       <template #item.assigned_to_user_name="{ item }">
         <span v-if="item.assigned_to_user_name">{{ item.assigned_to_user_name }}</span>
         <span v-else class="text-secondary-label">Sin asignar</span>
@@ -262,6 +359,12 @@ function onCreated(ticket, failed) {
 }
 .filter-priority {
   flex: 0 1 180px;
+}
+.filter-wide {
+  flex: 1 1 240px;
+}
+.filter-date {
+  flex: 0 1 170px;
 }
 .tickets-table :deep(tbody tr) {
   cursor: pointer;

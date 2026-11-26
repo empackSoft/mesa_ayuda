@@ -44,3 +44,11 @@ class StaffResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+# Para el filtro "Solicitante" de la lista de tickets (soporte/admin)
+class RequesterResponse(BaseModel):
+    id: int
+    name: str
+    location_name: Optional[str] = None
+    is_active: bool

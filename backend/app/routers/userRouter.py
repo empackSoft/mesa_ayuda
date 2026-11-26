@@ -13,13 +13,15 @@ from schemas.user import (
     UserCreate,
     UserUpdate,
     UserResponse,
-    StaffResponse
+    StaffResponse,
+    RequesterResponse
 )
 
 from services.userService import (
     create_user,
     get_users,
     get_staff_users,
+    get_requesters,
     get_user_by_id,
     update_user,
     deactivate_user
@@ -69,6 +71,18 @@ def list_staff(
         current_user: User = Depends(require_support_or_admin)
 ):
     return get_staff_users(db)
+
+
+# Quienes han levantado tickets, para el filtro "Solicitante" (soporte/admin)
+@router.get(
+    "/requesters",
+    response_model=list[RequesterResponse]
+)
+def list_requesters(
+        db: Session = Depends(get_db),
+        current_user: User = Depends(require_support_or_admin)
+):
+    return get_requesters(db)
 
 
 @router.get(

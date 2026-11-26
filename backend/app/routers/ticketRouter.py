@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, status, UploadFile, File
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 from typing import Optional
-from datetime import datetime
+from datetime import date
 from dependencies.database import get_db
 from schemas.ticket import TicketStatusUpdate
 from schemas.ticketHistory import TicketHistoryResponse
@@ -93,8 +93,10 @@ def list_tickets(
         priority: Optional[str] = None,
         incidencia_id: Optional[int] = None,
         subincidencia_id: Optional[int] = None,
-        created_from: Optional[datetime] = None,
-        created_to: Optional[datetime] = None,
+        created_from: Optional[date] = None,
+        created_to: Optional[date] = None,
+        location_id: Optional[int] = None,
+        created_by_user_id: Optional[int] = None,
         q: Optional[str] = None,
         assigned_to_me: bool = False,
         page: int = 1,
@@ -112,6 +114,8 @@ def list_tickets(
         subincidencia_id=subincidencia_id,
         created_from=created_from,
         created_to=created_to,
+        location_id=location_id,
+        created_by_user_id=created_by_user_id,
         q=q,
         assigned_to_me=assigned_to_me,
         page=page,

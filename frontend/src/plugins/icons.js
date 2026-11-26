@@ -6,9 +6,9 @@ import {
   CircleAlert, CircleCheck, CircleDot, CircleX, ClipboardPaste, Clock, Download,
   Ellipsis, Eye, EyeOff, File, FileArchive, FileSpreadsheet, FileText, Filter,
   Flag, Hammer, History, House, Image, Inbox, Info, LifeBuoy, Loader, Lock,
-  LogOut, Mail, MapPinOff, Menu, MessageSquare, Minus, Paperclip, Pencil, Plus,
+  LogOut, Mail, MapPin, MapPinOff, Menu, MessageSquare, Minus, Paperclip, Pencil, Plus,
   RefreshCw, Search, Send, Shapes, SlidersHorizontal, Square, SquareCheck, SquareMinus, Star, Store,
-  StarHalf, Ticket, TrendingDown, TrendingUp, TriangleAlert, Upload, UserPlus, Users, Warehouse, X,
+  StarHalf, Ticket, TrendingDown, TrendingUp, TriangleAlert, Upload, User, UserPlus, Users, Warehouse, X,
 } from 'lucide-vue-next'
 
 // Registro explícito: solo se incluyen en el build los iconos que se usan.
@@ -23,6 +23,7 @@ const ICONS = {
   'circle-help': CircleHelp,
   map: Map,
   'user-check': UserCheck,
+  'map-pin': MapPin,
   bell: Bell,
   'bell-off': BellOff,
   'check-check': CheckCheck,
@@ -96,6 +97,7 @@ const ICONS = {
   'triangle-alert': TriangleAlert,
   upload: Upload,
   'user-plus': UserPlus,
+  user: User,
   users: Users,
   x: X,
 }

@@ -98,6 +98,7 @@ const TOURS = {
     step($('ticket-search'), 'Busca', 'Por número (por ejemplo #3586), sucursal, descripción, categoría o persona.', 'bottom'),
     step($('priority-filter'), 'Prioridad', 'Muestra solo los tickets de una prioridad.', 'bottom'),
     isStaff && step(() => document.querySelector('[data-tour="priority-filter"]')?.parentElement?.querySelector('.v-switch'), 'Asignados a mí', 'Actívalo para ver solo los tickets que tienes asignados.', 'bottom'),
+    isStaff && step($('staff-filters'), 'Solicitante, sucursal y fechas', 'Combínalos: por ejemplo, los tickets de una sucursal en un año, o los de una persona en un rango de fechas. Revisa la pestaña <b>Todos</b> para incluir los cerrados.', 'bottom'),
     step($('tickets-table'), 'Lista de tickets', 'Da clic en un ticket para ver la conversación, los archivos y su estado. Las columnas se pueden ordenar.', 'top'),
     HELP,
   ],

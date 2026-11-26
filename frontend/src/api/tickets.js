@@ -65,6 +65,7 @@ export const locationsApi = {
 
 export const usersApi = {
   staff: () => http.get('/users/staff').then((r) => r.data),
+  requesters: () => http.get('/users/requesters').then((r) => r.data),
 }
 
 export const accountApi = {

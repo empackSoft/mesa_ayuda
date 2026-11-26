@@ -33,6 +33,24 @@ def get_staff_users(db: Session):
     )
 
 
+def get_requesters(db: Session):
+    """Usuarios que han levantado al menos un ticket (activos o no), para filtrar la lista."""
+    from models.location import Location
+    from models.ticket import Ticket
+
+    rows = (
+        db.query(User.id, User.name, User.is_active, Location.name)
+        .outerjoin(Location, Location.id == User.location_id)
+        .filter(User.id.in_(db.query(Ticket.created_by_user_id).distinct()))
+        .order_by(User.name.asc())
+        .all()
+    )
+    return [
+        {"id": uid, "name": name, "is_active": bool(active), "location_name": location}
+        for uid, name, active, location in rows
+    ]
+
+
 def get_user_by_id(
         db: Session,
         user_id: int

@@ -9,6 +9,8 @@ services:
       - "127.0.0.1:8080:80"
     depends_on:
       - backend
+    mem_limit: 64m
+    memswap_limit: 64m   # igual a mem_limit: sin swap extra, el tope es real
     networks:
       - internal
 
@@ -28,7 +30,14 @@ services:
     volumes:
       - ./backend/app/uploads:/app/uploads
     # UVICORN_FLAGS en el .env: "--reload" solo en Local; en el VPS se deja vacío
-    command: uvicorn main:app --host 0.0.0.0 --port 8000 ${UVICORN_FLAGS:-}
+    # --limit-concurrency: "semáforo"; con más de 100 peticiones a la vez responde 503
+    # (inténtalo de nuevo) en lugar de amontonarlas hasta agotar la memoria.
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --limit-concurrency 100 ${UVICORN_FLAGS:-}
+    # Topes para no quitarle recursos a DirectAdmin (correo, sitios). Si un contenedor
+    # pasa su tope de memoria, Docker lo detiene y restart: always lo vuelve a levantar.
+    mem_limit: 512m
+    memswap_limit: 512m   # igual a mem_limit: sin swap extra, el tope es real
+    cpus: 1.5
 
   postgres:
     image: postgres:15-alpine
@@ -41,6 +50,9 @@ services:
       - "127.0.0.1:5432:5432"
     volumes:
       - vol_mesa_final:/var/lib/postgresql/data
+    mem_limit: 512m
+    memswap_limit: 512m   # igual a mem_limit: sin swap extra, el tope es real
+    cpus: 1.5
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 5s
@@ -52,7 +64,10 @@ services:
     image: redis:7-alpine
     container_name: redis
     restart: always
-    command: redis-server --appendonly yes
+    # Redis solo guarda contadores de intentos: tope de 64 MB y, si se llena, descarta lo más viejo
+    command: redis-server --appendonly yes --maxmemory 64mb --maxmemory-policy allkeys-lru
+    mem_limit: 128m
+    memswap_limit: 128m   # igual a mem_limit: sin swap extra, el tope es real
     networks:
       - internal
 
